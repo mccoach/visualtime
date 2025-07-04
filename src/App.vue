@@ -6,7 +6,7 @@
         <div class="site-title-container">
           <div class="site-branding">
             <div class="favicon-container">
-              <img src="/favicon.svg" alt="光阴 Logo" class="favicon" width="96" height="96">
+              <img :src="faviconUrl" alt="光阴 Logo" class="favicon" width="80" height="80">
             </div>
             <div class="site-text">
               <h1 class="site-title">光阴</h1>
@@ -74,10 +74,11 @@
 
     <footer class="footer">
       <p>光阴 VisualTime - 让时间可视化</p>
-      <p class="author">大谨 | 用❤️打造</p>
+      <p class="author">作者：大谨</p>
     </footer>
   </div>
 </template>
+
 
 
 <script setup>
@@ -86,6 +87,7 @@ import DateDisplay from './components/DateDisplay.vue'
 import CountdownCard from './components/CountdownCard.vue'
 import TodayCountdown from './components/TodayCountdown.vue'
 import CustomCountdown from './components/CustomCountdown.vue'
+import faviconUrl from './assets/favicon.svg' // 添加这行导入
 import {
   getYearRemaining,
   getQuarterRemaining,
@@ -100,6 +102,7 @@ import {
   getDecimalPrecision,
   setDecimalPrecision
 } from './utils/storage'
+
 
 // 状态管理
 const yearRemaining = ref(0)
@@ -220,7 +223,7 @@ onUnmounted(() => {
 }
 
 .site-title {
-  font-size: 66px;
+  font-size: 60px;
   font-weight: 600;
   margin-bottom: 8px;
   color: var(--text-primary);
@@ -228,7 +231,7 @@ onUnmounted(() => {
 }
 
 .site-subtitle {
-  font-size: 27px;
+  font-size: 25px;
   color: var(--text-tertiary);
   margin: 0;
   line-height: 1.2;
