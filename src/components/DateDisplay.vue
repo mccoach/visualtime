@@ -61,7 +61,7 @@ onUnmounted(() => { clearInterval(timer) })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%; height: 100%;
+  width: 95%; height: 100%;
 }
 .date-info {
   flex: 1;
@@ -76,8 +76,8 @@ onUnmounted(() => { clearInterval(timer) })
   display: flex; align-items: center;
   font-family: var(--font-mono);
 }
-.num-block { display: inline-block; width: 42px; text-align: center; font-size: 64px; font-weight: 600; color: var(--green-primary);}
-.sep-block { display: inline-block; width: 22px; text-align: center; font-size: 64px; font-weight: 600; color: var(--green-primary); user-select: none; padding: 0 2px;}
+.num-block { display: inline-block; width: 80px; text-align: center; font-size: 72px; font-weight: 600; color: var(--green-primary);}
+.sep-block { display: inline-block; width: 32px; text-align: center; font-size: 64px; font-weight: 600; color: var(--green-primary); user-select: none; padding: 2 2px;}
 @media (max-width: 768px) {
   .date-display { margin-left: 0; height: auto; min-height: 120px; margin-bottom: 20px;}
   .date-content { flex-direction: column; text-align: center; gap: 20px; height: auto;}

@@ -1,71 +1,53 @@
-// ========== dateUtils.js ==========
-// 本文件负责阳历/农历/节气/天干地支/生肖信息等所有时间工具，
-// 现在全部用 lunar-javascript 方案，消除所有静态表
-
+// ========== src/utils/dateUtils.js ==========
+// 使用 lunar-javascript 作为唯一农历/节气计算源
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import quarterOfYear from 'dayjs/plugin/quarterOfYear'
-import { Solar } from 'lunar-javascript' // ⭐powerful农历节气库
+// ⭐正确引入 Solar 对象，必须有 { Solar }
+import { Solar } from 'lunar-javascript'
 
 dayjs.locale('zh-cn')
 dayjs.extend(weekOfYear)
 dayjs.extend(quarterOfYear)
 
 /**
- * 精确获取今天的农历信息，包括：
- * - 天干地支年份
- * - 生肖
- * - 农历月份日及润月
- * - 节气（如果当前日为节气则直接显示，否则为空）
- * @param {Date} date 若不传默认今天
+ * 获取今天（或指定日期）的农历、天干地支、生肖、节气信息
+ * 精确，自动随年份变化
+ * @param {Date} date - 可传指定日期，默认今天
+ * @returns {Object} 包含 ganZhiYear, zodiac, lunarMonth, lunarDay, jieQi, fullInfo
  */
 export const getLunarInfo = (date = new Date()) => {
   try {
-    // 通过 lunar-javascript 获取天文/官方农历信息
-    const solar = Solar.fromDate(date)           // 公历转阳历对象
-    const lunar = solar.getLunar()               // 转农历对象
-
-    // 天干地支年份，如 甲辰
-    const ganZhiYear = lunar.getYearInGanZhi()
-
-    // 生肖，如 "龙"
-    const zodiac = lunar.getYearShengXiao()
-
-    // 农历月份（润月自动带“闰”字）、农历日
-    const lunarMonth = lunar.getMonthInChinese()         // 如"正月"
-    const lunarDay   = lunar.getDayInChinese()           // 如"初五"
-    const isLeap = lunar.isLeap()                        // 是否润月
-    const lunarMonthStr = isLeap ? `闰${lunarMonth}` : lunarMonth
-
-    // 当天节气名称（如果是节气日，否则为空字符串）
-    const jieQi = lunar.getJieQi() || ''
-
-    // （可选）获取本年全部节气日期表，如需做日历高亮
-    // const allJieQiTable = lunar.getJieQiTable()
-
+    // ⭐solar转农历、查节气
+    const solar = Solar.fromDate(date)
+    const lunar = solar.getLunar()
+    const ganZhiYear = lunar.getYearInGanZhi()      // 天干地支
+    const zodiac = lunar.getYearShengXiao()         // 生肖（如"龙"）
+    const lunarMonth = lunar.isLeap()
+      ? `闰${lunar.getMonthInChinese()}`
+      : lunar.getMonthInChinese()
+    const lunarDay = lunar.getDayInChinese()
+    const jieQi = lunar.getJieQi() || ''            // 如果当天为节气日才不为空
     return {
       ganZhiYear,
       zodiac,
-      lunarMonth: lunarMonthStr,
+      lunarMonth,
       lunarDay,
       jieQi,
-      // 合成完整描述，例如“甲辰龙年 农历二月初八 · 惊蛰”
-      fullInfo: `${ganZhiYear}${zodiac}年 农历${lunarMonthStr}${lunarDay}${jieQi ? ' · ' + jieQi : ''}`
+      fullInfo: `${ganZhiYear}${zodiac}年 农历${lunarMonth}${lunarDay}${jieQi ? ' · ' + jieQi : ''}`
     }
   } catch (err) {
-    return { ganZhiYear: '', zodiac: '', lunarMonth: '', lunarDay: '', jieQi: '', fullInfo: '（农历信息加载失败）' }
+    // 输出详细报错，方便排查 while dev
+    console.error('农历信息异常', err)
+    return { ganZhiYear: '', zodiac: '', lunarMonth: '', lunarDay: '', jieQi: '', fullInfo: '(农历信息加载失败)' }
   }
 }
 
-/**
- * 阳历格式化YYYY年MM月DD日 dddd
- */
+/** 公历格式化后的字符串，如"2025年04月06日 星期日" */
 export const formatDate = (date) => dayjs(date).format('YYYY年MM月DD日 dddd')
 
-/**
- * 当前时分秒（hh:mm:ss），用于时间数码管/倒计时
- */
+/** 当前hh:mm:ss，纯数字字符串对象 */
 export const getCurrentTime = () => {
   const now = dayjs()
   return {
@@ -75,9 +57,7 @@ export const getCurrentTime = () => {
   }
 }
 
-/**
- * 今日剩余时间倒计时（精确到毫秒）
- */
+/** 今日倒计时（精确到毫秒） */
 export const getTodayRemaining = () => {
   const now = dayjs()
   const endOfDay = now.endOf('day')
@@ -94,7 +74,7 @@ export const getTodayRemaining = () => {
   }
 }
 
-// ====== 剩余倒计时主算法，和农历无关部分（保留） ======
+// 以下倒计时计算逻辑与原有一致，直接沿用
 export const getYearRemaining = (precision = 'day') => {
   const now = dayjs(), endOfYear = now.endOf('year')
   return calculateRemaining(now, endOfYear, precision)
@@ -114,8 +94,6 @@ export const getWeekRemaining = (precision = 'day', weekStart = 1) => {
   else endOfWeek = now.endOf('week')
   return calculateRemaining(now, endOfWeek, precision)
 }
-
-/* 通用剩余数算法（天、小时、秒，小数） */
 const calculateRemaining = (start, end, precision) => {
   const diff = end.diff(start)
   switch (precision) {
@@ -125,10 +103,7 @@ const calculateRemaining = (start, end, precision) => {
     default:       return parseFloat((diff / (1000 * 60 * 60 * 24)).toFixed(2))
   }
 }
-
-/**
- * 自定义日期倒计天数
- */
+/** 自定义倒计时，天数 */
 export const getCustomCountdown = (targetDate) => {
   const now = dayjs()
   const target = dayjs(targetDate)
