@@ -1,0 +1,20 @@
+{
+  "name": "visualtime",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.10",
+    "lunar-javascript": "^1.6.12",
+    "vue": "^3.4.15"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.3",
+    "vite": "^5.0.11"
+  }
+}
