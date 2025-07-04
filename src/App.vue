@@ -1,7 +1,6 @@
 <template>
   <div id="app">
     <main class="main-content">
-      <!-- 网站标题独立区域 -->
       <div class="site-title-section">
         <div class="site-title-container">
           <div class="site-branding">
@@ -74,11 +73,10 @@
 
     <footer class="footer">
       <p>光阴 VisualTime - 让时间可视化</p>
-      <p class="author">作者：大谨</p>
+      <p class="author">大谨 | 用❤️打造</p>
     </footer>
   </div>
 </template>
-
 
 
 <script setup>
