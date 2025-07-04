@@ -2,53 +2,61 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]             # 仅在main分支有提交时触发本工作流
 
-# 设置 GITHUB_TOKEN 权限以允许部署到 GitHub-Pages
+# 权限配置，必须设置以便自动发布到GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# 只允许同时进行一次部署，跳过正在运行和最新队列之间的运行队列
+# 防止同一个分支队列发起多个部署同时进行
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest       # 执行环境：官方稳定Linux
     steps:
+      # 拉取你的代码仓库内容
       - name: Checkout
         uses: actions/checkout@v4
-        
+
+      # 配置Node.js环境，推荐用18.x
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-          
+
+      # 安装项目依赖
       - name: Install dependencies
         run: npm ci
-        
+
+      # 构建你的站点，会自动生成dist目录
       - name: Build
         run: npm run build
-        
+
+      # 配置GitHub Pages
       - name: Setup Pages
         uses: actions/configure-pages@v4
-        
+
+      # 上传build产物（dist目录为vite默认输出目录）
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
 
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    # 指明必须等待 build 阶段完成后才能开始 deploy
     needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages        # 自动标识为pages环境
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        # v4插件会自动识别artifact，只能有1个（不要有其它workflow产出名为github-pages的artifact）

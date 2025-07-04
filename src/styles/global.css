@@ -1,139 +1,88 @@
-/* 全局样式重置 */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ========== 全局颜色和字体变量 ========== */
 
+/* 颜色方案让你在项目里统一风格，减少分散定义 */
 :root {
-  /* 颜色变量 */
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #2d2d2d;
-  --bg-tertiary: #3d3d3d;
-  --text-primary: #ffffff;
-  --text-secondary: #888888;
-  --text-tertiary: #666666;
-  --border-color: #555555;
-  
-  /* 绿色系 */
-  --green-primary: #4caf50;
-  --green-secondary: #66bb6a;
-  --green-tertiary: #81c784;
-  --green-quaternary: #a5d6a7;
-  
-  /* 字体 */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  --bg-primary: #1a1a1a;         /* 页面主背景，最常见深色背景色 */
+  --bg-secondary: #2d2d2d;       /* 页内/卡片等次一级背景 */
+  --bg-tertiary: #3d3d3d;        /* 更深层卡片块 */
+  --text-primary: #fff;          /* 主体文字/大标题等基本色 */
+  --text-secondary: #aaa;        /* 卡片/模块内次要提示、按钮文字 */
+  --text-tertiary: #666;         /* 更淡/不可激活、或辅助提示色 */
+  --green-primary: #4caf50;      /* 主要强调色/绿色高亮，用于倒计时/按钮 */
+  --green-secondary: #66bb6a;    /* 绿色渐变2 */
+  --green-tertiary: #81c784;     /* 绿色渐变3 */
+  --green-quaternary: #a5d6a7;   /* 绿色渐变4/辅助 */
+  --border-radius: 12px;         /* 模块圆角 */
 }
 
+/* ========== 全局基础字体、背景，一律继承 ========== */
 body {
-  font-family: var(--font-sans);
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-weight: 400;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* 字体家族：苹果系统优先、再到 win、安卓通用字体，避免中文乱码 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-primary);          /* 用主背景 */
+  color: var(--text-primary);             /* 主字体色 */
+  margin: 0;                              /* 去除默认外边距 */
+  min-height: 100vh;                      /* 页面满屏高度 */
 }
 
-/* 通用样式 */
+/* ========== 卡片核心样式，统一各功能块轮廓和背景 ========== */
 .card {
-  background-color: var(--bg-secondary);
-  border-radius: 12px;
-  padding: 24px;
+  background: var(--bg-secondary);        /* 卡片用统一次级背景 */
+  border-radius: var(--border-radius);    /* 圆角风格统一 */
+  padding: 24px;                          /* 内边距，模块之间间距靠外层控制 */
+  box-sizing: border-box;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);/* 微弱阴影，质感提升 */
 }
 
+/* ========== 标题/段落去默认间距、规范权重 ========== */
+h1, h2, h3, p {
+  margin: 0;              /* 清除浏览器默认外边距 */
+  font-weight: 400;       /* 保持风格一致（如非强调用600等） */
+}
+
+/* ========== 通用链接高亮/悬停 ========== */
+a {
+  color: var(--green-primary);    /* 链接用主题绿色 */
+  text-decoration: none;
+}
+a:hover {
+  color: var(--green-tertiary);   /* 悬浮时更柔和的绿色 */
+}
+
+/* ========== 表单、输入、按钮基础风格 ========== */
+input, button, select, textarea {
+  font-family: inherit;    /* 继承全局字体 */
+  outline: none;           /* 取消蓝色边框，统一交互体验 */
+}
 .button {
-  border: none;
-  border-radius: 20px;
+  border: none; border-radius: 20px;
   padding: 8px 20px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
+  cursor: pointer; transition: all 0.2s;
 }
-
-.button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .button-primary {
   background-color: var(--green-primary);
   color: var(--bg-primary);
 }
-
-.button-primary:hover:not(:disabled) {
-  background-color: var(--green-secondary);
+.button-primary:disabled {
+  opacity: 0.5; cursor: not-allowed;
 }
 
-/* 输入框通用样式 */
-input, select {
-  font-family: inherit;
+/* ========== 响应式断点（手机/平板自适应整理） ========== */
+@media (max-width: 1000px) {
+  .main-content { max-width: 100%; padding: 16px !important; }
+  .card { padding: 16px; }
 }
-
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type=number] {
-  -moz-appearance: textfield;
-}
-
-/* 滚动条样式 */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
-}
-
-/* 动画 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-enter-active {
-  animation: fadeIn 0.3s ease;
-}
-
-/* 响应式断点 */
-@media (max-width: 1200px) {
-  .main-content {
-    max-width: 100%;
-    padding: 0 15px;
-  }
-}
-
 @media (max-width: 768px) {
-  .card {
-    padding: 20px;
-  }
-  
-  .button {
-    padding: 10px 24px;
-  }
+  .main-content { padding: 10px !important; padding-top: 120px; }
+  .card { padding: 10px; }
 }
 
-@media (max-width: 480px) {
-  .card {
-    padding: 16px;
-  }
-  
-  .main-content {
-    padding: 0 10px;
-  }
+/* ========== 滚动条样式优化，提升大数据场景体验 ========== */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
 }
