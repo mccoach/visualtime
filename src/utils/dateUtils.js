@@ -25,11 +25,14 @@ export const getLunarInfo = (date = new Date()) => {
     const lunar = solar.getLunar()
     const ganZhiYear = lunar.getYearInGanZhi()
     const zodiac = lunar.getYearShengXiao()
-    const lunarMonth = lunar.getMonthInChinese()
+    const lunarMonth = lunar.getMonthInChinese() + '月';   // 强制加“月”字
     const lunarDay = lunar.getDayInChinese()
     const jieQiToday = lunar.getJieQi() || ''
     const jieQiTable = lunar.getJieQiTable()
 
+    const isLeap = lunar.isLeapMonth && lunar.isLeapMonth();
+    if (isLeap) lunarMonth = '闰' + lunarMonth;
+    
     let currentJieQi = ''
     let jieQiDayNum = 0
     // 解析date为 y, m, d
