@@ -33,6 +33,7 @@ const updateDateTime = () => {
   currentDate.value = formatDate(date)
   // 直接用 lunar-javascript 返回的 fullInfo
   lunarInfo.value = getLunarInfo(date).fullInfo
+  
   const t = getCurrentTime()
   now.value = { hours: t.hours, minutes: t.minutes, seconds: t.seconds }
 }
