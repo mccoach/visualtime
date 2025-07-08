@@ -1,79 +1,65 @@
 // ========== storage.js ==========
-// 负责所有本地持久化设置的读写，包括倒计时精度、周起始日、自定义倒计时记录
+// 局部状态类数据的本地持久化存储、读取、删除
+// 精度配置、周首日配置、自定义倒计时均适用
 
-// Key常量，保证一致性和易于批量维护
+// 所有用到的localStorage key集合。集中定义，保证不出错也方便扩展。
 const STORAGE_KEYS = {
-  PRECISION_YEAR: 'precision_year',
+  PRECISION_YEAR: 'precision_year',           // "天/小时/分钟/秒"
   PRECISION_QUARTER: 'precision_quarter',
   PRECISION_MONTH: 'precision_month',
   PRECISION_WEEK: 'precision_week',
-  DECIMAL_PRECISION_YEAR: 'decimal_precision_year',
+  DECIMAL_PRECISION_YEAR: 'decimal_precision_year',      // 小数点精度
   DECIMAL_PRECISION_QUARTER: 'decimal_precision_quarter',
   DECIMAL_PRECISION_MONTH: 'decimal_precision_month',
   DECIMAL_PRECISION_WEEK: 'decimal_precision_week',
-  WEEK_START: 'week_start',
-  CUSTOM_EVENTS: 'custom_events'
+  WEEK_START: 'week_start',                   // 周首日切换（1/0）
+  CUSTOM_EVENTS: 'custom_events'              // 所有自定义倒计时条目
 }
 
-// ==== 精度设置获取和保存 ====
-// @param type: 'year'|'quarter'|'month'|'week'
-// 读取指定单位的天/小时/秒精度
+// -- 精度主单位设置万能存取 --
 export const getPrecision = (type) => {
   const key = `precision_${type}`.toUpperCase()
   return localStorage.getItem(STORAGE_KEYS[key]) || 'day'
 }
-// 保存指定单位的精度
 export const setPrecision = (type, precision) => {
   const key = `precision_${type}`.toUpperCase()
   localStorage.setItem(STORAGE_KEYS[key], precision)
 }
 
-// ==== 小数点精度设置 ====
-// 读取单位小数点格式
+// -- 小数点精度设置存取（可选0/1/2） --
 export const getDecimalPrecision = (type) => {
   const key = `decimal_precision_${type}`.toUpperCase()
   const value = localStorage.getItem(STORAGE_KEYS[key])
   return value ? parseInt(value) : 0
 }
-// 保存单位小数点格式
 export const setDecimalPrecision = (type, precision) => {
   const key = `decimal_precision_${type}`.toUpperCase()
   localStorage.setItem(STORAGE_KEYS[key], precision.toString())
 }
 
-// ==== 周起始日，1为周一，0为周日 ====
-// 读取
+// -- 周首日设置，1为周一，0为周日 --
 export const getWeekStart = () => {
   return parseInt(localStorage.getItem(STORAGE_KEYS.WEEK_START) || '1')
 }
-// 保存
 export const setWeekStart = (value) => {
   localStorage.setItem(STORAGE_KEYS.WEEK_START, value.toString())
 }
 
-// ==== 自定义倒计时记录 ====
-// 获取全部已保存自定义事件
+// -- 自定义倒计时数据：全部为列表 --
 export const getCustomEvents = () => {
   const events = localStorage.getItem(STORAGE_KEYS.CUSTOM_EVENTS)
   return events ? JSON.parse(events) : []
 }
-// 保存全部自定义事件（覆盖全部）
 export const saveCustomEvents = (events) => {
   localStorage.setItem(STORAGE_KEYS.CUSTOM_EVENTS, JSON.stringify(events))
 }
-// 添加单条自定义事件
 export const addCustomEvent = (event) => {
   const events = getCustomEvents()
-  const newEvent = {
-    id: Date.now(),
-    ...event,
-    createdAt: new Date().toISOString()
-  }
+  const newEvent = { id: Date.now(), ...event, createdAt: new Date().toISOString() }
   events.push(newEvent)
   saveCustomEvents(events)
   return newEvent
 }
-// 删除单条
 export const removeCustomEvent = (id) => {
   const events = getCustomEvents()
   const filtered = events.filter(event => event.id !== id)

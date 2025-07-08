@@ -1,64 +1,60 @@
-/* ========== 全局颜色和字体变量 ========== */
-
-/* 颜色方案让你在项目里统一风格，减少分散定义 */
+/* ========== 全局主题变量 ========== */
 :root {
-  --bg-primary: #1a1a1a;         /* 页面主背景，最常见深色背景色 */
-  --bg-secondary: #2d2d2d;       /* 页内/卡片等次一级背景 */
-  --bg-tertiary: #3d3d3d;        /* 更深层卡片块 */
-  --text-primary: #fff;          /* 主体文字/大标题等基本色 */
-  --text-secondary: #aaa;        /* 卡片/模块内次要提示、按钮文字 */
-  --text-tertiary: #666;         /* 更淡/不可激活、或辅助提示色 */
-  --green-primary: #4caf50;      /* 主要强调色/绿色高亮，用于倒计时/按钮 */
-  --green-secondary: #66bb6a;    /* 绿色渐变2 */
-  --green-tertiary: #81c784;     /* 绿色渐变3 */
-  --green-quaternary: #a5d6a7;   /* 绿色渐变4/辅助 */
-  --border-radius: 12px;         /* 模块圆角 */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #3d3d3d;
+  --bg-quaternary: #4d4d4d;
+  --text-primary: #fff;
+  --text-secondary: #aaa;
+  --text-tertiary: #666;
+  --green-primary: #4caf50;
+  --green-secondary: #66bb6a;
+  --green-tertiary: #81c784;
+  --green-quaternary: #a5d6a7;
+  --border-color: #444;
+  --border-radius: 12px;
 }
 
-/* ========== 全局基础字体、背景，一律继承 ========== */
+/* ========== 基础字体/背景 ========== */
 body {
-  /* 字体家族：苹果系统优先、再到 win、安卓通用字体，避免中文乱码 */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: var(--bg-primary);          /* 用主背景 */
-  color: var(--text-primary);             /* 主字体色 */
-  margin: 0;                              /* 去除默认外边距 */
-  min-height: 100vh;                      /* 页面满屏高度 */
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  margin: 0;
+  min-height: 100vh;
 }
 
-/* ========== 卡片核心样式，统一各功能块轮廓和背景 ========== */
+/* ========== 卡片外壳 ========== */
 .card {
-  background: var(--bg-secondary);        /* 卡片用统一次级背景 */
-  border-radius: var(--border-radius);    /* 圆角风格统一 */
-  padding: 24px;                          /* 内边距，模块之间间距靠外层控制 */
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius);
+  padding: 24px;
   box-sizing: border-box;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.18);/* 微弱阴影，质感提升 */
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
 }
 
-/* ========== 标题/段落去默认间距、规范权重 ========== */
+/* ========== 统一标题权重 ========== */
 h1, h2, h3, p {
-  margin: 0;              /* 清除浏览器默认外边距 */
-  font-weight: 400;       /* 保持风格一致（如非强调用600等） */
+  margin: 0;
+  font-weight: 400;
 }
 
-/* ========== 通用链接高亮/悬停 ========== */
-a {
-  color: var(--green-primary);    /* 链接用主题绿色 */
-  text-decoration: none;
-}
-a:hover {
-  color: var(--green-tertiary);   /* 悬浮时更柔和的绿色 */
-}
+/* ========== 链接和悬停 ========== */
+a { color: var(--green-primary); text-decoration: none; }
+a:hover { color: var(--green-tertiary); }
 
-/* ========== 表单、输入、按钮基础风格 ========== */
+/* ========== 输入、表单、按钮基础风格 ========== */
 input, button, select, textarea {
-  font-family: inherit;    /* 继承全局字体 */
-  outline: none;           /* 取消蓝色边框，统一交互体验 */
+  font-family: inherit;
+  outline: none;
 }
 .button {
-  border: none; border-radius: 20px;
+  border: none;
+  border-radius: 20px;
   padding: 8px 20px;
   font-weight: 600;
-  cursor: pointer; transition: all 0.2s;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 .button-primary {
   background-color: var(--green-primary);
@@ -68,21 +64,280 @@ input, button, select, textarea {
   opacity: 0.5; cursor: not-allowed;
 }
 
-/* ========== 响应式断点（手机/平板自适应整理） ========== */
-@media (max-width: 1000px) {
-  .main-content { max-width: 100%; padding: 16px !important; }
-  .card { padding: 16px; }
+/* ========== 主LOGO区与标题结构(绝对定位)、副标题字号平台 ================== */
+.site-title-section {
+  position: absolute;
+  top: 30px;
+  left: 50px;
+  z-index: 10;
 }
-@media (max-width: 768px) {
-  .main-content { padding: 10px !important; padding-top: 120px; }
-  .card { padding: 10px; }
+.site-branding {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.favicon { 
+  display: block; 
+  margin-top: 20px; /* 新增，下移10px */
+}
+.site-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.site-title {
+  font-size: 60px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+.site-subtitle {
+  font-size: 25px;
+  color: var(--text-tertiary);
+  margin: 0;
+  line-height: 0;
 }
 
-/* ========== 滚动条样式优化，提升大数据场景体验 ========== */
+/* ========== 主内容区域与卡片间距 ========== */
+.main-content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px;
+  padding-bottom: 0;
+  width: 100%;
+  position: relative;
+}
+.countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 30px;
+  margin-bottom: 30px;
+}
+.date-display {
+  margin-left: 290px;
+  margin-bottom: 30px;
+}
+.today-countdown { margin-bottom: 30px; }
+.custom-countdown { margin-bottom: 8px; }
+.date-display, .today-countdown, .custom-countdown { margin-right: 0; }
+
+/* ========== footer版权、作者区 ========== */
+.footer.footer-vertical {
+  display: flex;
+  flex-direction: column;      /* 纵向堆叠slogan与联系方式 */
+  align-items: center;         /* 所有子项居中显示 */
+  padding: 12px 32px;
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+.slogan {
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-align: center;
+  margin-bottom: 10px;         /* 与微信信息间距 */
+}
+.contact-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;     /* 居中：保证图标和文字一起居中 */
+  width: 100%;
+  margin-bottom: 0;
+}
+.contact-text {
+  color: var(--green-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .2s;
+}
+.wechat-icon {
+  display: inline-flex; align-items: center; cursor: pointer; margin-left: 3px;
+  border-radius:50%; background:rgba(76,175,80,.10);
+  transition:.2s;
+}
+.wechat-icon:hover, .contact-text:hover { color: var(--green-tertiary);}
+.wechat-modal {
+  position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.56); display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
+}
+.wechat-qr-box {
+  background: #232323; padding: 28px 36px 20px 36px; border-radius: 16px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.23);
+  display: flex; flex-direction: column; align-items: center;
+}
+.wechat-qr-img {
+  width: 180px; height: 180px; border-radius: 10px;
+  background: #fff; margin-bottom: 18px; box-shadow: 0 2px 12px #0003;
+  object-fit: contain;
+  padding: 6px;
+}
+.close-btn {
+  margin-top: 12px; font-size: 16px; color: var(--text-secondary);
+  padding: 6px 18px; border: 1px solid var(--border-color); background: none;
+  border-radius: 8px; cursor: pointer; transition:.1s;
+}
+.close-btn:hover { color:var(--green-primary); border-color:var(--green-primary);}
+
+/* ========== 组合精度数字绿色高亮 ========== */
+.combo-num {
+  color: var(--green-primary) !important;
+  font-weight: 600;
+  margin: 0 4px;
+  font-style: normal;
+}
+
+/* ========== 按钮连体分组（所有卡片和custom都统一用法） ========== */
+.button-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 14px;
+}
+.button-row.horizontal-between {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+/* 横向连体按钮组、圆角合并、颜色高亮 */
+.joined-btn-group {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  width: auto;
+}
+.joined-btn {
+  border-radius: 0;
+  margin-left: -1px;
+  border-width: 1px 1px 1px 0;
+  width: 48px;
+  height: 28px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--bg-quaternary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.joined-btn:first-child { border-top-left-radius: 14px; border-bottom-left-radius: 14px; margin-left:0;}
+.joined-btn:last-child  { border-top-right-radius: 14px; border-bottom-right-radius: 14px; }
+
+.precision-btn.active,
+.decimal-btn.active,
+.unit-btn.active,
+.week-btn.active {
+  background: var(--green-primary);
+  color: var(--bg-primary);
+}
+
+.decimal-btn.disabled, .unit-btn.disabled, .week-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-quaternary);
+  color: var(--text-tertiary);
+}
+
+/* ========== 滚动条样式美化 ========== */
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--bg-tertiary);
   border-radius: 8px;
+}
+
+/* ========== 响应式断点适配 ========== */
+@media (max-width: 1000px) {
+  .main-content { max-width: 100%; padding: 16px !important; }
+  .card { padding: 16px; }
+}
+@media (max-width: 768px) {
+  /* ----- 主内容整体布局适配，顶部留空间给LOGO+标题 ----- */
+  .main-content {
+    padding: 10px !important;
+    padding-top: 120px;
+  }
+  .card { padding: 10px; }
+
+  /* ------ LOGO+网站标题：移动端自动独占一行 ------ */
+  .site-title-section {
+    position: static !important;      /* 移动端参与流式布局，独占一行 */
+    display: block !important;
+    width: 100%;
+    margin: 0 auto 14px auto;
+    padding: 0;
+    z-index: 10;
+  }
+  .site-branding {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100%;
+    gap: 10px;
+  }
+  .favicon {
+    width: 60px;
+    height: 60px;
+    margin-top: 10 !important;
+    margin-bottom: 0 !important;
+  }
+  .site-text {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .site-title { font-size: 40px; }
+  .site-subtitle { font-size: 16px; }
+
+  /* ---- 四栏卡片网格、卡片下间距，日期横条补齐间隔 ---- */
+  .countdown-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .date-display { margin-left: 0 !important; margin-bottom: 20px;}
+  .today-countdown { margin-bottom: 20px; }
+  .custom-countdown { margin-bottom: 5px; }
+  .footer { padding: 5px 20px; }
+  .footer.flex-row-space,
+  .footer.footer-flex,
+  .footer.footer-vertical {
+    flex-direction: column !important;
+    gap: 6px;
+    align-items: center !important;
+    justify-content: center;
+  }
+  .footer-side { display: none; }
+  .contact-box { justify-content: center; }
+  .slogan { font-size: 13px; }
+}
+
+@media (max-width: 600px) {
+  .footer.footer-flex {
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 8px 14px 8px;
+  }
+  .footer-side { display: none; }
+  .contact-box { justify-content: center; }
+  .slogan { font-size: 13px; }
+}
+@media (max-width: 480px) {
+  .main-content { padding-top: 160px;}
+  .site-branding { flex-direction: column; gap: 16px;}
+  .site-title { font-size: 40px;}
+  .site-subtitle { font-size: 16px;}
+  .favicon {
+    width: 48px;
+    height: 48px;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
 }

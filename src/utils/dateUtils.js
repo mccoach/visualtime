@@ -1,72 +1,57 @@
-// ========== dateUtils.js ==========
-// 所有公历/农历/节气精算功能，全部采用 lunar-javascript 官方推荐API；无任何静态节气表
+// ========== src/utils/dateUtils.js ==========
+// 所有日期/农历/节气/倒计时核心算法统一入口
 
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import quarterOfYear from 'dayjs/plugin/quarterOfYear'
-
-// 第三方高精度农历节气库（已安装npm i lunar-javascript）:
 import { Solar } from 'lunar-javascript'
 
+// dayjs全局插件配置
 dayjs.locale('zh-cn')
 dayjs.extend(weekOfYear)
 dayjs.extend(quarterOfYear)
 
 /**
- * 获取当天精确农历和节气等全部信息（天干地支/生肖/农历日期/节气）
+ * 获取精准农历和节气信息，节气当天只显示节气名，次日起依次第几天
  * @param {Date} date 默认今天
- * @returns {Object}
+ * @returns {Object} 包含天干地支、生肖、农历、节气内容
  */
-
 export const getLunarInfo = (date = new Date()) => {
   try {
     const solar = Solar.fromDate(date)
     const lunar = solar.getLunar()
     const ganZhiYear = lunar.getYearInGanZhi()
     const zodiac = lunar.getYearShengXiao()
-    const lunarMonth = lunar.getMonthInChinese() + '月';   // 强制加“月”字
+    const lunarMonth = lunar.getMonthInChinese() + '月'
     const lunarDay = lunar.getDayInChinese()
-    const jieQiToday = lunar.getJieQi() || ''
     const jieQiTable = lunar.getJieQiTable()
-
-    const isLeap = lunar.isLeapMonth && lunar.isLeapMonth();
-    if (isLeap) lunarMonth = '闰' + lunarMonth;
-    
-    let currentJieQi = ''
-    let jieQiDayNum = 0
-    // 解析date为 y, m, d
-    const y = solar.getYear()
-    const m = solar.getMonth()
-    const d = solar.getDay()
+    // 定义当天的儒略日
+    const y = solar.getYear(), m = solar.getMonth(), d = solar.getDay()
     const dateSolar = Solar.fromYmd(y, m, d)
-    let prevName = '', prevSolar = null
-
-    Object.entries(jieQiTable).forEach(([name, sol]) => {
-      if (
-        sol.getYear() < y ||
-        (sol.getYear() === y && (sol.getMonth() < m || (sol.getMonth() === m && sol.getDay() <= d)))
-      ) {
-        if (
-          !prevSolar ||
-          sol.getYear() > prevSolar.getYear() ||
-          (sol.getYear() === prevSolar.getYear() && (sol.getMonth() > prevSolar.getMonth() || (sol.getMonth() === prevSolar.getMonth() && sol.getDay() > prevSolar.getDay())))
-        ) {
-          prevName = name
-          prevSolar = sol
-        }
-      }
-    })
-
-    if (prevSolar && prevName) {
-      currentJieQi = prevName
-      // 用julianDay做天数差
-      jieQiDayNum = Math.floor(dateSolar.getJulianDay() - prevSolar.getJulianDay() + 1)
+    const dateJulian = dateSolar.getJulianDay()
+    // 所有节气节点，按时间排好序
+    const allJieQi = Object.entries(jieQiTable)
+      .map(([name, sol]) => ({
+        name,
+        jd: sol.getJulianDay(),
+        solar: sol
+      }))
+      .sort((a, b) => a.jd - b.jd)
+    // 找所属区间节气
+    let prevJieQi = null, nextJieQi = null
+    for (let i = 0; i < allJieQi.length; i++) {
+      if (allJieQi[i].jd <= dateJulian) prevJieQi = allJieQi[i]
+      if (allJieQi[i].jd > dateJulian && !nextJieQi) nextJieQi = allJieQi[i]
     }
-
-    let jieQiInfo = jieQiToday
-    if (!jieQiToday && currentJieQi && jieQiDayNum > 0) {
-      jieQiInfo = `${currentJieQi}第${jieQiDayNum}天`
+    let jieQiInfo = ''
+    if (prevJieQi && prevJieQi.jd === dateJulian) {
+      // 节气日当天，直接显示节气名
+      jieQiInfo = prevJieQi.name
+    } else if (prevJieQi && nextJieQi && dateJulian < nextJieQi.jd) {
+      // 只要不是当天，才显示第几天
+      const dayNum = Math.ceil(dateJulian - prevJieQi.jd + 1)
+      jieQiInfo = `${prevJieQi.name}第${dayNum}天`
     }
     return {
       ganZhiYear,
@@ -82,18 +67,13 @@ export const getLunarInfo = (date = new Date()) => {
   }
 }
 
-
-
 /**
- * 格式化公历日期，“YYYY年MM月DD日 dddd”
- * @param {Date} date 
- * @returns {String}
+ * 格式化阳历为"YYYY年MM月DD日 星期几"
  */
 export const formatDate = (date) => dayjs(date).format('YYYY年MM月DD日 dddd')
 
 /**
- * 当前时分秒字符串，hh:mm:ss
- * @returns {Object}
+ * 当前时分秒
  */
 export const getCurrentTime = () => {
   const now = dayjs()
@@ -105,66 +85,57 @@ export const getCurrentTime = () => {
 }
 
 /**
- * 今日剩余时间（精确到毫秒），用于页面动态秒表展示
- * @returns {Object}
+ * 今日剩余，返回对象{hours,minutes,seconds,milliseconds}
  */
 export const getTodayRemaining = () => {
   const now = dayjs()
   const endOfDay = now.endOf('day')
   const diff = endOfDay.diff(now)
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-  const milliseconds = diff % 1000
   return {
-    hours: String(hours).padStart(2, '0'),
-    minutes: String(minutes).padStart(2, '0'),
-    seconds: String(seconds).padStart(2, '0'),
-    milliseconds: String(milliseconds).padStart(3, '0')
+    hours: String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, '0'),
+    minutes: String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0'),
+    seconds: String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0'),
+    milliseconds: String(diff % 1000).padStart(3, '0')
   }
 }
 
-// ====== 剩余倒计时主算法部分 ======
-
-/**
- * 获取本年剩余（按指定精度）
- * 可精确到小数天/小时/秒
- */
-export const getYearRemaining = (precision = 'day') => {
-  const now = dayjs(), endOfYear = now.endOf('year')
-  return calculateRemaining(now, endOfYear, precision)
-}
-export const getQuarterRemaining = (precision = 'day') => {
-  const now = dayjs(), endOfQuarter = now.endOf('quarter')
-  return calculateRemaining(now, endOfQuarter, precision)
-}
-export const getMonthRemaining = (precision = 'day') => {
-  const now = dayjs(), endOfMonth = now.endOf('month')
-  return calculateRemaining(now, endOfMonth, precision)
-}
-export const getWeekRemaining = (precision = 'day', weekStart = 1) => {
+// --- 剩余倒计时主算法，全部按主单位/精度调用 ---
+export const getYearRemaining    = (p='day', dp=0) => calculateRemaining(dayjs(), dayjs().endOf('year'), p, dp)
+export const getQuarterRemaining = (p='day', dp=0) => calculateRemaining(dayjs(), dayjs().endOf('quarter'), p, dp)
+export const getMonthRemaining   = (p='day', dp=0) => calculateRemaining(dayjs(), dayjs().endOf('month'), p, dp)
+export const getWeekRemaining    = (precision='day', decimalPrecision=0, weekStart=1) => {
   const now = dayjs()
-  let endOfWeek
-  if (weekStart === 1) endOfWeek = now.endOf('week').add(1, 'day')
-  else endOfWeek = now.endOf('week')
-  return calculateRemaining(now, endOfWeek, precision)
-}
-
-/*
- * 计算start和end之间的剩余天/小时/秒数
- */
-const calculateRemaining = (start, end, precision) => {
-  const diff = end.diff(start)
-  switch (precision) {
-    case 'day':    return parseFloat((diff / (1000 * 60 * 60 * 24)).toFixed(2))
-    case 'hour':   return parseFloat((diff / (1000 * 60 * 60)).toFixed(2))
-    case 'second': return Math.ceil(diff / 1000)
-    default:       return parseFloat((diff / (1000 * 60 * 60 * 24)).toFixed(2))
-  }
+  const todayWeekday = now.day()
+  let daysToEnd = weekStart === 1 ?
+    (7 - ((todayWeekday === 0) ? 7 : todayWeekday))
+    : (6 - todayWeekday)
+  const end = now.add(daysToEnd, 'day').endOf('day')
+  return calculateRemaining(now, end, precision, decimalPrecision)
 }
 
 /**
- * 计算自定义日期距离今天还有多少天（最小0）
+ * 统一单位+精度剩余主算法，绝不冗余
+ * @param start dayjs对象
+ * @param end dayjs对象
+ * @param precision
+ * @param decimalPrecision
+ * @returns 精度控制下的主倒计时单位数值
+ */
+const calculateRemaining = (start, end, precision='day', decimalPrecision=0) => {
+  const diff = end.diff(start)
+  let base
+  switch (precision) {
+    case 'day':    base = 1000*60*60*24;    break
+    case 'hour':   base = 1000*60*60;       break
+    case 'minute': base = 1000*60;          break
+    case 'second': base = 1000;             break
+    default:       base = 1000*60*60*24;
+  }
+  return parseFloat((diff / base).toFixed(decimalPrecision))
+}
+
+/**
+ * 自定义目标日期倒计时（天）
  */
 export const getCustomCountdown = (targetDate) => {
   const now = dayjs()

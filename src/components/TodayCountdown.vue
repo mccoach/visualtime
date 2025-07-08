@@ -1,10 +1,8 @@
 <template>
-  <!--
-    今日倒计时主横条（防抖布局），左标题右数字
-    液面波浪SVG绝对定位覆盖整个卡片，内容区用z-index:2浮于液面上
-  -->
   <div class="today-countdown card today-liquid-wrap">
-    <!-- 横向液面SVG：淡灰色、progress控制宽度，z-index:1 -->
+    <!--
+      液面波浪SVG渐淡灰色，width=card宽，横向进度由progress驱动，波动高度/波长每段插值
+    -->
     <svg
       class="liquid-svg-h"
       :width="cardW"
@@ -15,70 +13,108 @@
     >
       <path
         :d="liquidPath"
-        fill="#484848"
-        fill-opacity="0.22"
+        fill="var(--bg-tertiary)"
+        fill-opacity="0.99"
       />
     </svg>
-
-    <!-- 内容区域（确保样式和你确认的防抖动布局完全一致） -->
+    <!--
+      今日剩余横条内容区，左标题/右数字区
+      （保证样式与标准横条一致，不会因SVG干扰数字布局）
+    -->
     <h3 class="title">今日剩余</h3>
     <div class="time-display">
-      <!-- 左右抖动防抖关键：每个数字和符号固定宽度inline-block单独span -->
       <span class="num-block">{{ time.hours }}</span>
       <span class="sep-block">:</span>
       <span class="num-block">{{ time.minutes }}</span>
       <span class="sep-block">:</span>
       <span class="num-block">{{ time.seconds }}</span>
-      <span class="dot-block">.</span>
-      <span class="ms-block">{{ time.milliseconds }}</span>
+      <!-- 只有选毫秒精度时才显示小数点和毫秒数字块 -->
+      <template v-if="precision === 'ms'">
+        <span class="dot-block">.</span>
+        <span class="ms-block">{{ time.milliseconds }}</span>
+      </template>
     </div>
-    <p class="precision-note">精确到毫秒</p>
+    <!-- 精度切换按钮区，连体风格 -->
+    <div class="joined-btn-group today-precision-group">
+      <button
+        :class="['today-precision-btn', 'joined-btn', { active: precision === 's' }]"
+        @click="setPrecision('s')"
+      >秒</button>
+      <button
+        :class="['today-precision-btn', 'joined-btn', { active: precision === 'ms' }]"
+        @click="setPrecision('ms')"
+      >毫秒</button>
+    </div>
   </div>
 </template>
 
 <script setup>
-// 右侧倒计时数字布局与之前确认方案完全一致
+// 时间/波面进度，完全贴两边
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getTodayRemaining } from '../utils/dateUtils'
 
-const cardW = 520   // 若设计为与主内容卡片宽一致
+// 本卡宽高，建议和App/主内容区设定一致
+const cardW = 520
 const cardH = 120
 
-// 横向剩余进度（0~1），越大液面越向右
+// 精度模式：'s'为秒级，'ms'为毫秒级
+const precision = ref('ms')
+const setPrecision = (val) => {
+  precision.value = val
+  refreshTimer()
+}
+
+// 进度百分比，当前时间已用/全天总毫秒数，越大越长
 const progress = computed(() => {
-  const t = getTodayRemaining()
+  // 关键：让 progress 依赖 time.value
   const totalMs = 24 * 60 * 60 * 1000
-  const msLeft =
-    Number(t.hours) * 60 * 60 * 1000 +
-    Number(t.minutes) * 60 * 1000 +
-    Number(t.seconds) * 1000 +
-    Number(t.milliseconds)
+  const msLeft = Number(time.value.hours) * 60 * 60 * 1000 +
+                 Number(time.value.minutes) * 60 * 1000 +
+                 Number(time.value.seconds) * 1000 +
+                 Number(time.value.milliseconds)
   return 1 - msLeft / totalMs
 })
 
-// 水波动画（幅度非常低、波长基础60-100）
-const waveOffset = ref(0)
-const myWaveAmp = ref(1 + Math.random() * 0.35)
-const myWaveLen = ref(60 + Math.random() * 40)
+// 波形锚点及参数，每条y段均独立波长/幅度
+const anchorCount = 6
+const anchorY = Array.from({ length: anchorCount }, (_, i) => i * cardH / (anchorCount - 1))
+const anchorWaveLen = anchorY.map(() => 60 + Math.random() * 36)
+const anchorAmp     = anchorY.map(() => 1 + Math.random() * 0.6)
 const myWavePhase = Math.random() * Math.PI * 2
-const randomSeed = Array.from({ length: Math.ceil(cardH / 6) + 2 }, () => Math.random() * 0.5 - 0.25)
+function lerp(a, b, t) { return a + (b - a) * t }
+function getLerpValue(y, anchorArr) {
+  for (let i = 0; i < anchorArr.length - 1; i++) {
+    if (y >= anchorY[i] && y <= anchorY[i + 1]) {
+      const t = (y - anchorY[i]) / (anchorY[i + 1] - anchorY[i])
+      return lerp(anchorArr[i], anchorArr[i + 1], t)
+    }
+  }
+  return anchorArr[anchorArr.length - 1]
+}
+
+// 随机扰动数组：每条波段加微扰，防止死板
+const randomSeed = Array.from(
+  { length: Math.ceil(cardH / 5) + 2 },
+  () => Math.random() * 0.4 - 0.2
+)
+const waveOffset = ref(0)
 let timer
-onMounted(() => { timer = setInterval(() => { waveOffset.value += 1 }, 24) })
+onMounted(() => { timer = setInterval(() => { waveOffset.value += 1 }, 32) })
 onUnmounted(() => { clearInterval(timer) })
+
+// 生成SVG液面路径，左右端点严格贴合
 const liquidPath = computed(() => {
   const rightX = cardW * progress.value
-  const amp = myWaveAmp.value
-  const len = myWaveLen.value
   const phase = waveOffset.value
-  let d = `M0,${cardH} L0,0 `
+  let d = `M${cardW},${cardH} L${cardW},0 `
   let idx = 0
-  // 横向，每隔dy生成扰动
   for (let y = 1; y < cardH - 1; y += 5) {
+    const waveLen = getLerpValue(y, anchorWaveLen)
+    const amp = getLerpValue(y, anchorAmp)
     const rand = randomSeed[idx % randomSeed.length]
-    const x =
-      rightX +
-      Math.sin((y / len) * 2 * Math.PI + phase / 49 + myWavePhase) * amp +
-      rand * 0.25 * Math.sin(phase / 57 + y)
+    const x = rightX
+      + Math.sin((y / waveLen) * 2 * Math.PI + phase / 47 + myWavePhase) * amp
+      + rand
     d += `${x},${y} `
     idx++
   }
@@ -86,19 +122,35 @@ const liquidPath = computed(() => {
   return d
 })
 
-// 倒计时数字业务
+// 倒计时数字自动刷新，切换ms/s智能调整频率
 const time = ref({ hours: '00', minutes: '00', seconds: '00', milliseconds: '000' })
-const updateTime = () => { time.value = getTodayRemaining() }
+
+// 定时刷新的方法，兼顾精度显示规则
+const updateTime = () => {
+  let t = getTodayRemaining()
+  // 若当前为“秒级”精度，只显示整数，不动毫秒
+  if (precision.value === 'second' || precision.value === 's') {
+    t.milliseconds = '000'
+  }
+  time.value = t // 这样progress依赖time.value，动画能动态刷新
+}
+
+// 启动定时器，刷倒计时
 let timer2
+const refreshTimer = () => {
+  if (timer2) clearInterval(timer2)
+  updateTime()
+  // 精度为毫秒时10ms刷，秒时1000ms刷
+  timer2 = setInterval(updateTime, precision.value === 'ms' ? 1 : 1000)
+}
 onMounted(() => {
   updateTime()
-  timer2 = setInterval(updateTime, 10)
+  timer2 = setInterval(updateTime, 10) // 液面/数字都可丝滑，1000也能用但动画略卡
 })
 onUnmounted(() => { clearInterval(timer2) })
 </script>
 
-<style scoped>
-/* 今日倒计时横条，relative为SVG定位提供上下文 */
+<style>
 .today-countdown.today-liquid-wrap {
   position: relative;
   overflow: hidden;
@@ -112,90 +164,105 @@ onUnmounted(() => { clearInterval(timer2) })
   margin-bottom: 30px;
   padding: 24px;
 }
-/* 液面波浪 */
 .liquid-svg-h {
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 1;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1;
 }
-/* 标题 */
-.title {
-  font-size: 18px;
-  color: var(--text-secondary);
-  font-weight: 400;
-  margin: 0 24px 0 0;
-  flex-shrink: 0;
-}
-/* 精确到毫秒备注，靠左下 */
-.precision-note {
-  font-size: 14px;
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-  margin: 0;
-  margin-top: 8px;
-  margin-left: 2px;
-}
-/* 右侧数字区-严格防抖动实现，横排全部用等宽块span */
+.title { font-size: 18px; color: var(--text-secondary); z-index: 2;font-weight: 400; margin: 0 24px 0 0; flex-shrink: 0;}
+/* 右侧倒计时数字区，完全居中并防抖动 */
 .time-display {
   font-family: var(--font-mono);
   display: flex;
   align-items: baseline;
-  justify-content: center; /* 修改：数字栏横向居中（原为flex-end或space-between） */
-  width: 100%;             /* 新增：让数字栏占满卡片宽度居中显示 */
-  /* 保证不会因内容不同导致数字靠左或靠右 */
+  flex: 1;
+  justify-content: center;
+  min-width: 232px;
+  z-index: 2;
 }
-
-/* 两位数字宽度/排版固定 */
 .num-block {
   display: inline-block;
-  width: 60px;
+  width: 64px;
   text-align: center;
   font-size: 56px;
   font-weight: 600;
   color: var(--green-primary);
+  z-index: 2;
 }
 .sep-block {
   display: inline-block;
-  width: 26px;
+  width: 24px;
   text-align: center;
   font-size: 56px;
   font-weight: 600;
   color: var(--green-primary);
+  z-index: 2;
   user-select: none;
 }
 .dot-block {
   display: inline-block;
-  width: 24px;
+  width: 16px;
   text-align: center;
   font-size: 32px;
   font-weight: 600;
   color: var(--green-secondary);
+  z-index: 2;
   user-select: none;
   margin-left: 0px;
 }
 .ms-block {
   display: inline-block;
-  width: 42px;
+  width: 20px;
   text-align: left;
   font-size: 32px;
   font-weight: 600;
   color: var(--green-secondary);
+  z-index: 2;
+}
+/* 精度切换按钮连体样式，风格与其它卡片保持一致，水平方向排列 */
+.joined-btn-group.today-precision-group {
+  display: flex;
+  z-index: 2;
+  flex-direction: row;
+  justify-content: center;
+  gap: 0;
+  margin-top: 18px;
+}
+.today-precision-btn.joined-btn {
+  border-radius: 0;
+  margin-left: -1px;
+  border-width: 1px 1px 1px 0;
+  width: 54px;
+  height: 32px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--bg-quaternary);
+  color: var(--text-secondary);
+  z-index: 2;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.today-precision-btn.joined-btn:first-child {
+  border-top-left-radius: 14px; border-bottom-left-radius: 14px; margin-left:0;
+}
+.today-precision-btn.joined-btn:last-child {
+  border-top-right-radius: 14px; border-bottom-right-radius: 14px;
+}
+.today-precision-btn.active {
+  background: var(--green-primary);
+  color: var(--bg-primary);
+}
+.today-precision-btn.disabled {
+  opacity: 0.5; cursor: not-allowed; background: var(--bg-tertiary); color: var(--text-tertiary);
 }
 @media (max-width: 768px) {
   .today-countdown.today-liquid-wrap {
-    flex-direction: column;
-    height: auto;
-    min-height: 120px;
-    gap: 15px;
-    padding: 14px;
-  }
+    flex-direction: column; height:auto; min-height:120px; gap:12px; padding: 14px; }
   .title { margin: 0; font-size: 16px;}
-  .precision-note{ margin:0; margin-top:4px;}
-  .num-block { width: 32px; font-size:40px;}
+  .num-block { width: 48px; font-size:40px;}
   .sep-block { width: 13px; font-size:40px; }
   .dot-block { width: 9px; font-size:22px;}
   .ms-block { width: 23px; font-size:24px;}
-  .time-display { min-width: 182px; }
+  .time-display { min-width: 120px; }
 }
 </style>
