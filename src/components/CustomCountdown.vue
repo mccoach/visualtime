@@ -253,15 +253,16 @@
         class="event-container"
       >
         <div class="event-item">
-          <!-- 拖动触发区：仅空白区可拖动，位于卡片最左侧留高度，实际是一个透明div（可直接hover） -->
+        
+          <!-- 拖动触发区：仅空白区可拖动，位于卡片最左侧留高度，实际是一个透明div（可直接hover） 
           <div class="drag-blank-area"
               title="拖动排序"
               style="position:absolute;left:0;top:0;bottom:0;right:0;z-index:5;cursor:move;"
               @mousedown.stop
               @touchstart.stop
               >
-            <!-- 仅作触发，不展示内容，可以设 pointer-events:none 给交互控件 -->
-          </div>
+            <!-- 仅作触发，不展示内容，可以设 pointer-events:none 给交互控件
+          </div> -->
           <!-- 日期时间描述 -->
           <div class="event-date-column">
             {{ event.dateTimeDesc }}
