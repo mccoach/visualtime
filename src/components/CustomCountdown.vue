@@ -246,13 +246,22 @@
       </div>
     </div>
     <!-- 自定义倒计时条目展示区 -->
-    <div class="events-list">
+    <div class="events-list" ref="eventsListRef">
       <div
         v-for="event in events"
         :key="event.id"
         class="event-container"
       >
         <div class="event-item">
+          <!-- 拖动触发区：仅空白区可拖动，位于卡片最左侧留高度，实际是一个透明div（可直接hover） -->
+          <div class="drag-blank-area"
+              title="拖动排序"
+              style="position:absolute;left:0;top:0;bottom:0;right:0;z-index:5;cursor:move;"
+              @mousedown.stop
+              @touchstart.stop
+              >
+            <!-- 仅作触发，不展示内容，可以设 pointer-events:none 给交互控件 -->
+          </div>
           <!-- 日期时间描述 -->
           <div class="event-date-column">
             {{ event.dateTimeDesc }}
@@ -307,6 +316,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, onUnmounted, watch } from 'vue'
 import dayjs from 'dayjs'
+import Sortable from 'sortablejs'
 import { getCustomEvents, saveCustomEvents } from '../utils/storage'
 
 /* ========== 输入字段及编辑相关ref ========== */
@@ -331,6 +341,9 @@ const hourInput    = ref(null)
 const minuteInput  = ref(null)
 const secondInput  = ref(null)
 const eventNameInput = ref(null)
+
+const eventsListRef = ref(null) // 【新增】对事件列表DOM的引用
+let sortableInstance = null     // 【新增】SortableJS 实例
 
 // 最小/最大值配置，用于循环
 const inputLimits = {
@@ -662,12 +675,41 @@ onMounted(() => {
   document.addEventListener('keydown', handleEscKey)
   document.addEventListener('click', handleGlobalClickOrTouch, true)
   document.addEventListener('touchstart', handleGlobalClickOrTouch, true)
+  nextTick(() => {
+    if (eventsListRef.value) {
+      sortableInstance = Sortable.create(eventsListRef.value, {
+        animation: 220,
+        handle: '.drag-blank-area', // 仅允许在空白区拖动
+        ghostClass: 'drag-ghost',   // 拖动时添加的类
+        chosenClass: 'drag-chosen', // 被选中但尚未移动时的类
+        dragClass: 'drag-dragging', // 拖动时的类
+        onEnd: function (evt) {
+          if (evt.oldIndex !== evt.newIndex && evt.oldIndex != null && evt.newIndex != null) {
+            // 更新events顺序
+            const moved = events.value.splice(evt.oldIndex, 1)[0]
+            events.value.splice(evt.newIndex, 0, moved)
+            saveCustomEvents(events.value)
+          }
+          // 【新增】确保还原所有动态拖拽样式
+          cleanDragEffects()
+        },
+        onStart: function () {
+          // 【增强】开始拖动时可以自定义更多效果
+        }
+      })
+    }
+  })
 })
 onUnmounted(() => {
   if (updateTimer) clearInterval(updateTimer)
   document.removeEventListener('keydown', handleEscKey)
   document.removeEventListener('click', handleGlobalClickOrTouch, true)
   document.removeEventListener('touchstart', handleGlobalClickOrTouch, true)
+  if (sortableInstance) {
+    sortableInstance.destroy()
+    sortableInstance = null
+  }
+  cleanDragEffects()
 })
 
 function handleAddOrSave() { if (isValidInput.value) handleAdd() }
@@ -825,6 +867,19 @@ function handleGlobalClickOrTouch(e) {
   // 不要加对 editingEvent 的清空！
 }
 
+function cleanDragEffects() {
+  // 清除可能残留的拖动类、插槽等（防止似乎未还原的情况）
+  const list = eventsListRef.value
+  if (!list) return
+  list.querySelectorAll('.drag-ghost,.drag-chosen,.drag-dragging').forEach(el => {
+    el.classList.remove('drag-ghost','drag-chosen','drag-dragging')
+    el.style.opacity = ''
+    el.style.transform = ''
+    el.style.boxShadow = ''
+    el.style.zIndex = ''
+    el.style.pointerEvents = ''
+  })
+}
 </script>
 
 <style scoped>
@@ -970,18 +1025,28 @@ function handleGlobalClickOrTouch(e) {
 .event-item {
   position: relative;
   display: grid;
-  grid-template-columns: 200px 1fr 400px 40px;
+  grid-template-columns: 200px 1fr 350px 40px;
   gap: 20px;
-  align-items: center;
+  align-items: start;
   margin-bottom: 15px;
 }
-.event-date-column, .event-name-column, .event-countdown-column {
+.event-date-column, .event-countdown-column {
   font-size: 16px;
   color: var(--text-primary);
   font-weight: 500;
   white-space: nowrap;
   text-align: left;
 }
+.event-name-column {
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 500;
+  /* 【修改】支持自动换行 */
+  white-space: normal;
+  word-break: break-all;          /* 防止长英文或无空格内容撑出 */
+  text-align: left;
+}
+
 .event-countdown-column strong, .combo-num {
   color: var(--green-primary);
   font-weight: 600;
@@ -1055,6 +1120,12 @@ function handleGlobalClickOrTouch(e) {
   opacity: 0.5; cursor: not-allowed; background: var(--bg-quaternary); color: var(--text-tertiary);
 }
 .empty-tip { text-align: center; color: var(--text-tertiary); font-size: 14px; padding: 20px;}
+.drag-chosen, .drag-dragging {
+  box-shadow: 0 8px 40px rgba(52, 206, 99, .22), 0 2px 18px #0004;
+  transform: scale(1.03);
+  z-index: 100;
+  cursor: move;
+}
 
 /* 移动端：两组输入一上一下居中，两组输入组内横排不分散 */
 @media (max-width: 768px) {
@@ -1141,5 +1212,10 @@ function handleGlobalClickOrTouch(e) {
 }
 @media (min-width: 769px) and (max-width: 1024px) {
   .event-item { grid-template-columns: 100px 1fr 180px 40px; gap: 15px;}
+}
+
+/* 保持移动端手指可用 */
+@media (any-pointer:coarse) {
+  .drag-blank-area { touch-action: pan-y !important; }
 }
 </style>
