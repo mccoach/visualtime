@@ -139,7 +139,7 @@
               @blur="validateEditYear"
               @keydown.up.prevent="spinEditField('year','up')"
               @keydown.down.prevent="spinEditField('year','down')"
-              @wheel.prevent="onWheel($event, 'year')"
+              @wheel.prevent="onEditWheel($event, 'year')"
             >
             <span class="date-separator">-</span>
             <input
@@ -156,7 +156,7 @@
               @blur="validateEditMonth"
               @keydown.up.prevent="spinEditField('month','up')"
               @keydown.down.prevent="spinEditField('month','down')"
-              @wheel.prevent="onWheel($event, 'month')"
+              @wheel.prevent="onEditWheel($event, 'month')"
             >
             <span class="date-separator">-</span>
             <input
@@ -173,7 +173,7 @@
               @blur="validateEditDay"
               @keydown.up.prevent="spinEditField('day','up')"
               @keydown.down.prevent="spinEditField('day','down')"
-              @wheel.prevent="onWheel($event, 'day')"
+              @wheel.prevent="onEditWheel($event, 'day')"
             >
           </div>
           <!-- 时分秒一组 -->
@@ -192,7 +192,7 @@
               @blur="validateEditHour"
               @keydown.up.prevent="spinEditField('hour','up')"
               @keydown.down.prevent="spinEditField('hour','down')"
-              @wheel.prevent="onWheel($event, 'hour')"
+              @wheel.prevent="onEditWheel($event, 'hour')"
             >
             <span class="date-separator">:</span>
             <input
@@ -209,7 +209,7 @@
               @blur="validateEditMinute"
               @keydown.up.prevent="spinEditField('minute','up')"
               @keydown.down.prevent="spinEditField('minute','down')"
-              @wheel.prevent="onWheel($event, 'minute')"
+              @wheel.prevent="onEditWheel($event, 'minute')"
             >
             <span class="date-separator">: </span>
             <input
@@ -226,7 +226,7 @@
               @blur="validateEditSecond"
               @keydown.up.prevent="spinEditField('second','up')"
               @keydown.down.prevent="spinEditField('second','down')"
-              @wheel.prevent="onWheel($event, 'second')"
+              @wheel.prevent="onEditWheel($event, 'second')"
             >
           </div>
           <input
@@ -523,10 +523,15 @@ const isDecimalDisabled = (unit, decimalValue) => {
 
 // 上下键切换数值，循环
 function spinField(key, direction) {
-  let val = Number(eval(key + ".value")) || 0
+  // 映射字段名到 vue ref 实例
+  const refsMap = {
+    year, month, day, hour, minute, second
+  }
+  let refObj = refsMap[key]
+  if (!refObj) return
+  let val = Number(refObj.value) || 0
   const lim = inputLimits[key]
   let max = (typeof lim.max === 'function') ? lim.max() : (lim.max && lim.max.value ? lim.max.value : lim.max)
-  // 月日上限可能为computed
   if (typeof max === 'function') max = max()
   const min = lim.min
   if (direction === 'up') {
@@ -534,7 +539,7 @@ function spinField(key, direction) {
   } else if (direction === 'down') {
     val = val <= min ? max : val - 1
   }
-  eval(key + ".value = String(val)")
+  refObj.value = String(val)
 }
 
 // 鼠标滚轮滚动时调整数值，阻止页面滚动
@@ -549,7 +554,8 @@ function onWheel(e, key) {
 
 // 编辑区上下键切换数值，循环
 function spinEditField(key, direction) {
-  let val = Number(editForm.value[key]) || 0
+  const refsMap = editForm.value // editForm 是一个对象，可用普通对象方式
+  let val = Number(refsMap[key]) || 0
   const lim = editInputLimits[key]
   let max = (typeof lim.max === 'function') ? lim.max() : (lim.max && lim.max.value ? lim.max.value : lim.max)
   if (typeof max === 'function') max = max()
@@ -559,7 +565,7 @@ function spinEditField(key, direction) {
   } else if (direction === 'down') {
     val = val <= min ? max : val - 1
   }
-  editForm.value[key] = String(val)
+  refsMap[key] = String(val)
 }
 
 // 编辑区鼠标滚轮滚动时调整数值，阻止页面滚动
@@ -571,7 +577,6 @@ function onEditWheel(e, key) {
     spinEditField(key, 'down')
   }
 }
-
 
 // 自动精度修正（配置了全部事件变化时实时校验）
 watch(
