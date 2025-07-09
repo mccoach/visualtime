@@ -79,14 +79,14 @@ onUnmounted(() => {
   .date-display { margin-left: 0; height: auto; min-height: 120px; margin-bottom: 20px;}
   .date-content { flex-direction: column; text-align: center; gap: 20px; height: auto;}
   .current-date { font-size: 32px; }
-  .num-block { width: 48px; font-size: 40px;}
-  .sep-block { width: 16px; font-size: 40px;}
+  .num-block { width: 66px; font-size: 60px;}
+  .sep-block { width: 32px; font-size: 60px;}
   .current-time { justify-content: center; }
 }
 @media (max-width: 480px) {
   .current-date { font-size: 26px; }
-  .num-block { width: 48px; font-size: 28px;}
-  .sep-block { width: 6px; font-size: 28px;}
+  .num-block { width: 48px; font-size: 40px;}
+  .sep-block { width: 16px; font-size: 40px;}
   .lunar-date { font-size: 14px; }
 }
 </style>
