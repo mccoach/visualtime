@@ -323,7 +323,7 @@ onUnmounted(() => {
 
 /* ========== 右上角菜单 (新增样式) ========== */
 .settings-menu-container {
-  position: absolute; top: 8px; right: 6px; z-index: 10;
+  position: absolute; top: 8px; right: 7px; z-index: 10;
 }
 .menu-trigger-btn {
   width: 32px;
@@ -374,7 +374,7 @@ onUnmounted(() => {
   align-items: center; /* 垂直居中 */
   justify-content: center; /* 水平居中 */
   border: none;
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   padding: 0px 6px;
   font-size: 14px;

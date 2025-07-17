@@ -374,7 +374,7 @@ const liquidPath = computed(() => {
   align-items: center; /* 垂直居中 */
   justify-content: center; /* 水平居中 */
   border: none;
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   padding: 0px 6px; /* 调整内边距以适应更紧凑的布局 */
   font-size: 14px;
