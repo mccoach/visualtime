@@ -19,6 +19,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+// [新增] 导入 luxon 的 DateTime
+import { DateTime } from 'luxon'
 import { formatDate, getLunarInfo, getCurrentTime } from '../utils/dateUtils'
 
 const currentDate = ref('')
@@ -26,12 +28,18 @@ const lunarInfo = ref('')
 const now = ref({ hours: '00', minutes: '00', seconds: '00' })
 
 const updateDateTime = () => {
-  const date = new Date()
-  currentDate.value = formatDate(date)
-  lunarInfo.value = getLunarInfo(date).fullInfo   // 一行完整输出
+  // [修改] 将创建日期对象的方式从 new Date() 改为 luxon 的 DateTime.now()
+  // 这是解决问题的核心。现在传递给 formatDate 和 getLunarInfo 的将是正确的 luxon 对象。
+  const luxonDate = DateTime.now()
+
+  // [说明] 此处调用 formatDate 时，传入的是 luxon 对象，符合新函数的要求。
+  currentDate.value = formatDate(luxonDate)
+  // [说明] 此处调用 getLunarInfo 时，传入的是 luxon 对象，我们已在 dateUtils 中做了兼容处理。
+  lunarInfo.value = getLunarInfo(luxonDate).fullInfo
   const t = getCurrentTime()
   now.value = { hours: t.hours, minutes: t.minutes, seconds: t.seconds }
 }
+
 let timer
 onMounted(() => {
   updateDateTime()
@@ -41,7 +49,6 @@ onUnmounted(() => {
   clearInterval(timer)
 })
 </script>
-
 
 <style scoped>
 .date-display {

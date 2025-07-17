@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "dayjs": "^1.11.10",
     "lunar-javascript": "^1.7.3",
     "luxon": "^3.7.1",
     "sortablejs": "^1.15.6",
