@@ -1165,15 +1165,15 @@ onUnmounted(() => {
 
 /* 自定义倒计时组件的根容器样式 */
 .custom-countdown {
-  margin-bottom: 8px; /* 与下方元素的间距 */
+  margin-bottom: 6px; /* 与下方元素的间距 */
 }
 
 /* 头部三栏网格布局 */
 .custom-countdown-header.three-column-header {
   display: grid; /* 使用网格布局 */
-  grid-template-columns: auto 1fr 1fr; /* 定义三列：左右两列自适应，中间列内容宽度 */
+  grid-template-columns:35% 30% 35%; /* 定义三列：左右两列自适应，中间列内容宽度 */
   align-items: center; /* 垂直居中对齐 */
-  gap: 20px; /* 列间距 */
+  gap: 0px; /* 列间距 */
   margin-bottom: 20px; /* 与事件列表的间距 */
 }
 
@@ -1188,6 +1188,7 @@ onUnmounted(() => {
 /* 头部左侧区域，内容靠左 */
 .header-zone-left {
   justify-self: start;
+  padding: 10px;
 }
 
 /* 头部中间区域，内容居中 */
@@ -1198,11 +1199,12 @@ onUnmounted(() => {
 /* 头部右侧区域，内容靠右 */
 .header-zone-right {
   justify-self: end;
+  padding: 10px;
 }
 
 /* 模块标题样式 */
 .title {
-  font-size: 18px; /* 字体大小 */
+  font-size: 16px; /* 字体大小 */
   color: var(--text-secondary); /* 颜色 */
   font-weight: 400; /* 字重 */
   margin: 0; /* 无外边距 */
