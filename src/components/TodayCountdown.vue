@@ -238,7 +238,7 @@ onUnmounted(() => { clearInterval(timer2) })
   background: var(--bg-quaternary);
   color: var(--text-secondary);
   z-index: 2;
-  font-size: 15px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.12s;
 }

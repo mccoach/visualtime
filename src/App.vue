@@ -15,6 +15,8 @@
       </div>
       <!-- 日期横条 -->
       <DateDisplay />
+      <!-- 今日剩余横条 -->
+      <TodayCountdown />
       <!-- 四大主倒计时卡片 -->
       <div class="countdown-grid">
         <!-- 年卡片 -->
@@ -69,8 +71,6 @@
           @week-start-change="handleWeekStartChange"
         />
       </div>
-      <!-- 今日剩余横条 -->
-      <TodayCountdown />
       <!-- 自定义倒计时卡片 -->
       <CustomCountdown />
     </main>
