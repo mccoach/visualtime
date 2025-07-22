@@ -1,49 +1,28 @@
 <template>
-  <div
-    class="custom-countdown card"
-  >
-    <div
-      class="custom-countdown-header three-column-header"
-    >
-      <div
-        class="header-zone-left"
-      >
-        <h3
-          class="title"
-        >
+  <!-- 组件根容器 -->
+  <div class="custom-countdown card">
+
+    <!-- 头部区域，包含标题和操作按钮 -->
+    <div class="custom-countdown-header">
+      
+      <!-- 左侧区域，用于放置标题 -->
+      <div class="header-zone-left">
+        <h3 class="title">
           自定义倒计时
         </h3>
       </div>
-      <div
-        class="header-zone-center"
-      >
-        <button
-          class="button button-primary add-new-event-btn"
-          @click="openAddModal"
-        >
-          添加倒计时
-        </button>
-      </div>
-      <div
-        class="header-actions header-zone-right"
-      >
+
+      <!-- 右侧区域，包含所有操作按钮 -->
+      <div class="header-actions header-zone-right">
+
+        <!-- 批量删除按钮 (仅在多选模式下显示) -->
         <button
           v-if="isMultiSelectMode && selectedEventIds.size > 0"
           class="button button-danger bulk-delete-btn"
           @click="bulkDelete"
           :title="`删除选中的 ${selectedEventIds.size} 个项目`"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             <line x1="10" y1="11" x2="10" y2="17"/>
@@ -51,67 +30,59 @@
           </svg>
           批量删除
         </button>
-        <div
-          class="joined-btn-group"
-        >
+
+        <!-- [结构重点] 连体按钮组的容器 -->
+        <div class="joined-btn-group">
+          
+          <!-- "添加"按钮 -->
+          <button
+            class="joined-btn action-btn add-btn"
+            @click="openAddModal"
+            title="添加新倒计时"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="12" y1="3" x2="12" y2="21"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+            </svg>
+          </button>
+          
+          <!-- "排序"按钮 -->
           <button
             class="joined-btn action-btn"
             :class="{ active: sortOrder !== 'manual' }"
             @click="cycleSortOrder"
             :title="`当前排序: ${sortOrder === 'manual' ? '手动' : (sortOrder === 'asc' ? '升序' : '降序')}`"
           >
-            <svg
-              v-if="sortOrder === 'manual'"
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-                <line x1="9" y1="3" x2="9" y2="21" stroke="#aaa" stroke-width="3" stroke-linecap="round"/>
-                <line x1="9" y1="3" x2="4" y2="10" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
-                <line x1="15" y1="3" x2="15" y2="21" stroke="#aaa" stroke-width="3" stroke-linecap="round"/>
-                <line x1="20" y1="14" x2="15" y2="21" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
+            <!-- ▼ SVG-1: 手动排序图标 ▼ -->
+            <svg v-if="sortOrder === 'manual'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="9" y1="3" x2="9" y2="21" stroke-width="3" stroke-linecap="round"/>
+                <line x1="9" y1="3" x2="4" y2="10" stroke-width="2" stroke-linecap="round"/>
+                <line x1="15" y1="3" x2="15" y2="21" stroke-width="3" stroke-linecap="round"/>
+                <line x1="20" y1="14" x2="15" y2="21" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            <svg
-              v-else-if="sortOrder === 'asc'"
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-                <line x1="9" y1="1" x2="9" y2="23" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-                <line x1="9" y1="1" x2="4" y2="10" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-                <line x1="15" y1="3" x2="15" y2="21" stroke="#aaa" stroke-width="3" stroke-linecap="round"/>
-                <line x1="20" y1="14" x2="15" y2="21" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
+            <!-- ▼ SVG-2: 升序图标 ▼ -->
+            <svg v-else-if="sortOrder === 'asc'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="9" y1="1" x2="9" y2="23" stroke-width="4" stroke-linecap="round"/>
+                <line x1="9" y1="1" x2="4" y2="10" stroke-width="3" stroke-linecap="round"/>
             </svg>
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-                <line x1="9" y1="3" x2="9" y2="21" stroke="#aaa" stroke-width="3" stroke-linecap="round"/>
-                <line x1="9" y1="3" x2="4" y2="10" stroke="#aaa" stroke-width="2" stroke-linecap="round"/>
-                <line x1="15" y1="1" x2="15" y2="23" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-                <line x1="20" y1="14" x2="15" y2="23" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            <!-- ▼ SVG-3: 降序图标 ▼ -->
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="15" y1="1" x2="15" y2="23" stroke-width="4" stroke-linecap="round"/>
+                <line x1="20" y1="14" x2="15" y2="23" stroke-width="3" stroke-linecap="round"/>
             </svg>
           </button>
+          
+          <!-- "多选"按钮 -->
           <button
             class="joined-btn action-btn"
             :class="{ active: isMultiSelectMode }"
@@ -129,13 +100,18 @@
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <path d="m9 12 2 2 4-4"/>
+              <rect x="1" y="1" width="22" height="22" rx="0" ry="0"/>
+              <path d="m5 14 4 4 10 -12"/>
             </svg>
           </button>
-        </div>
-      </div>
-    </div>
+
+        </div> <!-- [结构重点] 这是 .joined-btn-group 的闭合标签 -->
+
+      </div> <!-- 这是 .header-actions 的闭合标签 -->
+
+    </div> <!-- 这是 .custom-countdown-header 的闭合标签 -->
+
+    <!-- 添加/编辑弹窗 -->
     <div
       v-if="isModalOpen"
       class="modal-overlay"
@@ -145,148 +121,35 @@
         class="modal-content"
         @click.stop
       >
-        <h3
-          class="modal-title"
-        >
+        <h3 class="modal-title">
           {{ modalTitle }}
         </h3>
-        <div
-          class="modal-form"
-        >
-          <div
-            class="input-group"
-          >
-            <input
-              ref="formYearRef"
-              v-model="eventForm.year"
-              type="text"
-              class="input"
-              placeholder="年"
-              @input="formInteractionHandler.onInput($event, 'year')"
-              @keydown="formInteractionHandler.onKeydown($event, 'year')"
-              @focus="formInteractionHandler.onFocus($event, 'year')"
-              @blur="formInteractionHandler.onBlur('year')"
-              @wheel.prevent="formInteractionHandler.onWheel($event, 'year')"
-            >
-            <span
-              class="date-separator"
-            >
-              -
-            </span>
-            <input
-              ref="formMonthRef"
-              v-model="eventForm.month"
-              type="text"
-              class="input"
-              placeholder="月"
-              @input="formInteractionHandler.onInput($event, 'month')"
-              @keydown="formInteractionHandler.onKeydown($event, 'month')"
-              @focus="formInteractionHandler.onFocus($event, 'month')"
-              @blur="formInteractionHandler.onBlur('month')"
-              @wheel.prevent="formInteractionHandler.onWheel($event, 'month')"
-            >
-            <span
-              class="date-separator"
-            >
-              -
-            </span>
-            <input
-              ref="formDayRef"
-              v-model="eventForm.day"
-              type="text"
-              class="input"
-              placeholder="日"
-              @input="formInteractionHandler.onInput($event, 'day')"
-              @keydown="formInteractionHandler.onKeydown($event, 'day')"
-              @focus="formInteractionHandler.onFocus($event, 'day')"
-              @blur="formInteractionHandler.onBlur('day')"
-              @wheel.prevent="formInteractionHandler.onWheel($event, 'day')"
-            >
+        <div class="modal-form">
+          <div class="input-group">
+            <input ref="formYearRef" v-model="eventForm.year" type="text" class="input" placeholder="年" @input="formInteractionHandler.onInput($event, 'year')" @keydown="formInteractionHandler.onKeydown($event, 'year')" @focus="formInteractionHandler.onFocus($event, 'year')" @blur="formInteractionHandler.onBlur('year')" @wheel.prevent="formInteractionHandler.onWheel($event, 'year')">
+            <span class="date-separator">-</span>
+            <input ref="formMonthRef" v-model="eventForm.month" type="text" class="input" placeholder="月" @input="formInteractionHandler.onInput($event, 'month')" @keydown="formInteractionHandler.onKeydown($event, 'month')" @focus="formInteractionHandler.onFocus($event, 'month')" @blur="formInteractionHandler.onBlur('month')" @wheel.prevent="formInteractionHandler.onWheel($event, 'month')">
+            <span class="date-separator">-</span>
+            <input ref="formDayRef" v-model="eventForm.day" type="text" class="input" placeholder="日" @input="formInteractionHandler.onInput($event, 'day')" @keydown="formInteractionHandler.onKeydown($event, 'day')" @focus="formInteractionHandler.onFocus($event, 'day')" @blur="formInteractionHandler.onBlur('day')" @wheel.prevent="formInteractionHandler.onWheel($event, 'day')">
           </div>
-          <div
-            class="input-group"
-          >
-            <input
-              ref="formHourRef"
-              v-model="eventForm.hour"
-              type="text"
-              class="input"
-              placeholder="时"
-              @input="formInteractionHandler.onInput($event, 'hour')"
-              @keydown="formInteractionHandler.onKeydown($event, 'hour')"
-              @focus="formInteractionHandler.onFocus($event, 'hour')"
-              @blur="formInteractionHandler.onBlur('hour')"
-              @wheel.prevent="formInteractionHandler.onWheel($event, 'hour')"
-            >
-            <span
-              class="date-separator"
-            >
-              :
-            </span>
-            <input
-              ref="formMinuteRef"
-              v-model="eventForm.minute"
-              type="text"
-              class="input"
-              placeholder="分"
-              @input="formInteractionHandler.onInput($event, 'minute')"
-              @keydown="formInteractionHandler.onKeydown($event, 'minute')"
-              @focus="formInteractionHandler.onFocus($event, 'minute')"
-              @blur="formInteractionHandler.onBlur('minute')"
-              @wheel.prevent="formInteractionHandler.onWheel($event, 'minute')"
-            >
-            <span
-              class="date-separator"
-            >
-              :
-            </span>
-            <input
-              ref="formSecondRef"
-              v-model="eventForm.second"
-              type="text"
-              class="input"
-              placeholder="秒"
-              @input="formInteractionHandler.onInput($event, 'second')"
-              @keydown="formInteractionHandler.onKeydown($event, 'second')"
-              @focus="formInteractionHandler.onFocus($event, 'second')"
-              @blur="formInteractionHandler.onBlur('second')"
-              @wheel.prevent="formInteractionHandler.onWheel($event, 'second')"
-            >
+          <div class="input-group">
+            <input ref="formHourRef" v-model="eventForm.hour" type="text" class="input" placeholder="时" @input="formInteractionHandler.onInput($event, 'hour')" @keydown="formInteractionHandler.onKeydown($event, 'hour')" @focus="formInteractionHandler.onFocus($event, 'hour')" @blur="formInteractionHandler.onBlur('hour')" @wheel.prevent="formInteractionHandler.onWheel($event, 'hour')">
+            <span class="date-separator">:</span>
+            <input ref="formMinuteRef" v-model="eventForm.minute" type="text" class="input" placeholder="分" @input="formInteractionHandler.onInput($event, 'minute')" @keydown="formInteractionHandler.onKeydown($event, 'minute')" @focus="formInteractionHandler.onFocus($event, 'minute')" @blur="formInteractionHandler.onBlur('minute')" @wheel.prevent="formInteractionHandler.onWheel($event, 'minute')">
+            <span class="date-separator">:</span>
+            <input ref="formSecondRef" v-model="eventForm.second" type="text" class="input" placeholder="秒" @input="formInteractionHandler.onInput($event, 'second')" @keydown="formInteractionHandler.onKeydown($event, 'second')" @focus="formInteractionHandler.onFocus($event, 'second')" @blur="formInteractionHandler.onBlur('second')" @wheel.prevent="formInteractionHandler.onWheel($event, 'second')">
           </div>
-          <input
-            ref="formNameRef"
-            v-model="eventForm.name"
-            type="text"
-            class="input event-name-input"
-            placeholder="事件名称（可选）"
-            @keydown="formInteractionHandler.onKeydown($event, 'name')"
-            @focus="formInteractionHandler.onFocus($event, 'name')"
-            @blur="formInteractionHandler.onBlur('name')"
-          >
+          <input ref="formNameRef" v-model="eventForm.name" type="text" class="input event-name-input" placeholder="事件名称（可选）" @keydown="formInteractionHandler.onKeydown($event, 'name')" @focus="formInteractionHandler.onFocus($event, 'name')" @blur="formInteractionHandler.onBlur('name')">
         </div>
-        <div
-          class="modal-actions"
-        >
-          <button
-            class="button button-secondary"
-            @click="closeModal"
-          >
-            取消
-          </button>
-          <button
-            class="button button-primary"
-            @click="saveEvent"
-            :disabled="!isFormValid"
-          >
-            保存
-          </button>
+        <div class="modal-actions">
+          <button class="button button-secondary" @click="closeModal">取消</button>
+          <button class="button button-primary" @click="saveEvent" :disabled="!isFormValid">保存</button>
         </div>
       </div>
     </div>
-    <div
-      class="events-list"
-      ref="eventsListRef"
-    >
+
+    <!-- 事件列表 -->
+    <div class="events-list" ref="eventsListRef">
       <div
         v-for="event in events"
         :key="event.id"
@@ -303,129 +166,52 @@
         @mouseleave="handleEventMouseLeave"
         @mousemove="handleEventMouseMove"
       >
-        <div
-          class="drag-handle drag-handle-left desktop-only"
-          title="拖动排序"
-        >
-          <svg width="10" height="24" fill="currentColor">
-            <circle cx="8" cy="6" r="1.5"/>
-            <circle cx="2" cy="12" r="1.5"/>
-            <circle cx="8" cy="12" r="1.5"/>
-            <circle cx="8" cy="18" r="1.5"/>
-          </svg>
+        <div class="drag-handle drag-handle-left desktop-only" title="拖动排序">
+          <svg width="10" height="24" fill="currentColor"><circle cx="8" cy="6" r="1.5"/><circle cx="2" cy="12" r="1.5"/><circle cx="8" cy="12" r="1.5"/><circle cx="8" cy="18" r="1.5"/></svg>
         </div>
-        <div
-          class="drag-handle drag-handle-right desktop-only"
-          title="拖动排序"
-        >
-          <svg width="10" height="24" fill="currentColor">
-            <circle cx="2" cy="6" r="1.5"/>
-            <circle cx="2" cy="12" r="1.5"/>
-            <circle cx="8" cy="12" r="1.5"/>
-            <circle cx="2" cy="18" r="1.5"/>
-          </svg>
+        <div class="drag-handle drag-handle-right desktop-only" title="拖动排序">
+          <svg width="10" height="24" fill="currentColor"><circle cx="2" cy="6" r="1.5"/><circle cx="2" cy="12" r="1.5"/><circle cx="8" cy="12" r="1.5"/><circle cx="2" cy="18" r="1.5"/></svg>
         </div>
-        <div
-          class="event-item"
-        >
-          <div
-            class="drag-blank-area mobile-only"
-            title="拖动排序"
-          ></div>
-          <div
-            class="event-name-column"
-          >
+        <div class="event-item">
+          <div class="drag-blank-area mobile-only" title="拖动排序"></div>
+          <div class="event-name-column" :title="event.name" >
             {{ event.name }}
           </div>
-          <div
-            class="event-date-column"
-            :ref="el => setElementRef(el, event.id, 'date')"
-            :style="fontStyles[event.id]?.date"
-          >
-            {{ event.dateTimeDesc }}
+          <div class="event-date-column" :ref="el => dateColumnRefs[event.id] = el">
+            <span :ref="el => dateContentRefs[event.id] = el">{{ event.dateTimeDesc }}</span>
           </div>
-          <div
-            class="event-countdown-column"
-            :ref="el => setElementRef(el, event.id, 'countdown')"
-            :style="fontStyles[event.id]?.countdown"
-          >
-            <span
-              v-html="event.finalDisplay"
-            ></span>
+          <div class="event-countdown-column" :ref="el => countdownColumnRefs[event.id] = el">
+            <span :ref="el => countdownContentRefs[event.id] = el" v-html="event.finalDisplay"></span>
           </div>
-          <div
-            class="settings-menu-container"
-            @click.stop
-          >
-            <button
-              class="menu-trigger-btn"
-              @click="toggleMenu(event.id)"
-              :class="{ active: activeMenu === event.id }"
-            >
-              ⋮
-            </button>
-            <div
-              v-if="activeMenu === event.id"
-              class="settings-dropdown-panel"
-            >
+          <!-- [修改] 为每个菜单容器添加 ref，以便进行焦点判断 -->
+          <div class="settings-menu-container" :ref="el => menuContainerRefs[event.id] = el" @click.stop>
+            <button class="menu-trigger-btn" @click="toggleMenu(event.id)" :class="{ active: activeMenu === event.id }">⋮</button>
+            <div v-if="activeMenu === event.id" class="settings-dropdown-panel">
               <div class="dropdown-column">
-                <button
-                  v-for="unit in unitOptions"
-                  :key="unit.value"
-                  :class="['menu-option-btn', { active: event.unit === unit.value }]"
-                  @click="handleUnitChange(event.id, unit.value)"
-                >
+                <button v-for="unit in unitOptions" :key="unit.value" :class="['menu-option-btn', { active: event.unit === unit.value }]" @click="handleUnitChange(event.id, unit.value)">
                   {{ unit.label }}
                 </button>
               </div>
               <div class="dropdown-column">
-                <!--
-                  [修改] v-for 现在循环的是 getAvailablePrecisions(event.unit) 的结果，
-                  这是一个根据当前单位动态计算出的、只包含可用选项的数组。
-                  :disabled 属性和相关的类判断已被移除。
-                -->
-                <button
-                  v-for="p in getAvailablePrecisions(event.unit)"
-                  :key="p.value"
-                  :class="['menu-option-btn', {
-                    active: event.decimalPrecision === p.value
-                  }]"
-                  @click="handlePrecisionChange(event.id, p.value)"
-                >
+                <button v-for="p in getAvailablePrecisions(event.unit)" :key="p.value" :class="['menu-option-btn', { active: event.decimalPrecision === p.value }]" @click="handlePrecisionChange(event.id, p.value)">
                   {{ p.label }}
                 </button>
               </div>
               <div class="dropdown-column">
-                <button
-                  class="menu-option-btn"
-                  @click="handleEdit(event)"
-                >
-                  编辑
-                </button>
-                <button
-                  class="menu-option-btn"
-                  @click="handleCopy(event)"
-                >
-                  复制
-                </button>
-                <button
-                  class="menu-option-btn delete"
-                  @click="handleMenuDelete(event.id)"
-                >
-                  删除
-                </button>
+                <button class="menu-option-btn" @click="handleEdit(event)">编辑</button>
+                <button class="menu-option-btn" @click="handleCopy(event)">复制</button>
+                <button class="menu-option-btn delete" @click="handleMenuDelete(event.id)">删除</button>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <p
-        v-if="events.length === 0"
-        class="empty-tip"
-      >
+      <p v-if="events.length === 0" class="empty-tip">
         暂无自定义倒计时，请添加
       </p>
     </div>
+
+    <!-- 框选矩形 -->
     <div
       v-if="isMarqueeSelecting"
       class="marquee-select-box"
@@ -436,118 +222,61 @@
         height: marqueeBox.height + 'px'
       }"
     ></div>
-  </div>
-  <Transition
-    name="hint-fade"
-  >
-    <div
-      v-if="showOperationHint && hoveredEventId && !pendingDeleteId && !pendingCopyId"
-      class="operation-hint"
-      :style="{
-        left: mousePosition.x + 'px',
-        top: mousePosition.y + 'px'
-      }"
-    >
-      <div
-        class="hint-content"
-      >
-        <div
-          class="hint-item"
-        >
-          <span
-            class="hint-key"
-          >
-            按 Space  或 / 键
-          </span>
-          <span
-            class="hint-action"
-          >
-            编辑
-          </span>
+
+  </div> <!-- 这是 .custom-countdown.card 的闭合标签 -->
+
+  <!-- 快捷键提示浮层 -->
+  <Transition name="hint-fade">
+    <div v-if="showOperationHint && hoveredEventId && !pendingDeleteId && !pendingCopyId" class="operation-hint" :style="{ left: mousePosition.x + 'px', top: mousePosition.y + 'px' }">
+      <div class="hint-content">
+        <div class="hint-item">
+          <span class="hint-key">按 Space  或 / 键</span>
+          <span class="hint-action">编辑</span>
         </div>
-        <div
-          class="hint-item"
-        >
-          <span
-            class="hint-key"
-          >
-            按 Insert 或 + 键
-          </span>
-          <span
-            class="hint-action"
-          >
-            复制
-          </span>
+        <div class="hint-item">
+          <span class="hint-key">按 Insert 或 + 键</span>
+          <span class="hint-action">复制</span>
         </div>
-        <div
-          class="hint-item"
-        >
-          <span
-            class="hint-key"
-          >
-            按 Delete 或 - 键
-          </span>
-          <span
-            class="hint-action"
-          >
-            删除
-          </span>
+        <div class="hint-item">
+          <span class="hint-key">按 Delete 或 - 键</span>
+          <span class="hint-action">删除</span>
         </div>
       </div>
     </div>
   </Transition>
-  <Transition
-    name="hint-fade"
-  >
-    <div
-      v-if="pendingCopyId && pendingCopyId === hoveredEventId"
-      class="copy-confirm-hint"
-      :style="{
-        left: mousePosition.x + 'px',
-        top: mousePosition.y + 'px'
-      }"
-    >
+
+  <!-- 确认复制浮层 -->
+  <Transition name="hint-fade">
+    <div v-if="pendingCopyId && pendingCopyId === hoveredEventId" class="copy-confirm-hint" :style="{ left: mousePosition.x + 'px', top: mousePosition.y + 'px' }">
       再按一次 Insert 或 + 确认复制
     </div>
   </Transition>
-  <Transition
-    name="hint-fade"
-  >
-    <div
-      v-if="pendingDeleteId && pendingDeleteId === hoveredEventId"
-      class="delete-confirm-hint"
-      :style="{
-        left: mousePosition.x + 'px',
-        top: mousePosition.y + 'px'
-      }"
-    >
+  
+  <!-- 确认删除浮层 -->
+  <Transition name="hint-fade">
+    <div v-if="pendingDeleteId && pendingDeleteId === hoveredEventId" class="delete-confirm-hint" :style="{ left: mousePosition.x + 'px', top: mousePosition.y + 'px' }">
       再按一次 Delete 或 - 确认删除
     </div>
   </Transition>
+
 </template>
 
 <script setup>
 // ========== 依赖导入 ==========
-// 导入Vue组合式API的核心函数
-import {
-  ref,
-  computed,
-  onMounted,
-  nextTick,
-  onUnmounted,
-  watch
-} from 'vue';
-// 导入Sortable.js库用于实现拖拽排序
+import { ref, computed, onMounted, nextTick, onUnmounted, watch, onBeforeUpdate } from 'vue';
 import Sortable from 'sortablejs';
-// 导入从localStorage存取数据的工具函数
-import {
-  getCustomEvents,
-  saveCustomEvents
-} from '../utils/storage';
-// 导入 luxon 以在表单验证和排序中使用
+import { getCustomEvents, saveCustomEvents } from '../utils/storage';
 import { DateTime } from 'luxon';
-// 导入重构后的统一倒计时计算函数
 import { calculateCustomDifference } from '../utils/dateUtils';
+import { createResponsiveFontAdapter } from '../utils/fontSizeManager.js';
+// [新增] 从全局广播网关导入通信函数
+import { broadcastMenuOpened, listenForOtherMenuOpened } from '../utils/eventBus.js';
+
+
+// [新增] 定义本组件在广播系统中的唯一身份ID
+const COMPONENT_ID = 'custom-countdown';
+// [新增] 用于存储 eventBus 返回的清理函数
+let cleanupMenuListener = null;
 
 
 // ========== 状态管理（State Management） ==========
@@ -561,11 +290,6 @@ const customCounter = ref(1);
 const activeMenu = ref(null);
 const eventsListRef = ref(null);
 let sortableInstance = null;
-const fontStyles = ref({});
-const elementRefs = ref({});
-let resizeObserver = null;
-const MAX_FONT_SIZE = 16;
-const MIN_FONT_SIZE = 9;
 const sortOrder = ref('manual');
 const isMultiSelectMode = ref(false);
 const selectedEventIds = ref(new Set());
@@ -580,6 +304,14 @@ let operationHintTimer = null;
 let operationHintHideTimer = null;
 const pendingCopyId = ref(null);
 const pendingDeleteId = ref(null);
+
+const dateColumnRefs = ref({});
+const countdownColumnRefs = ref({});
+const dateContentRefs = ref({});
+const countdownContentRefs = ref({});
+let fontAdapters = {};
+// [新增] 为每个菜单容器创建DOM引用集合
+const menuContainerRefs = ref({});
 
 
 // ========== DOM 引用 ==========
@@ -613,26 +345,19 @@ const fieldConfig = {
   name: {}
 };
 const unitOptions = [ { value: 'year', label: '年' }, { value: 'month', label: '月' }, { value: 'week', label: '周' }, { value: 'day', label: '天' }, { value: 'hour', label: '时' }, { value: 'minute', label: '分' }, { value: 'second', label: '秒' } ];
-
-// [修改] 静态的 `allPrecisionOptions` 作为所有精度选项的源数据
 const allPrecisionOptions = [
   { value: 'combo', label: '0:0' },
   { value: 0, label: '0' },
   { value: 1, label: '0.0' },
   { value: 2, label: '0.00' }
 ];
-
-// [新增] 一个根据单位动态过滤可用精度选项的函数
 const getAvailablePrecisions = (unit) => {
   if (unit === 'second') {
-    // 当单位为“秒”时，只允许“组合”和“0”精度
     return allPrecisionOptions.filter(p => p.value === 'combo' || p.value === 0);
   }
   if (unit === 'minute') {
-    // 当单位为“分”时，允许“组合”、“0”和“0.0”精度
     return allPrecisionOptions.filter(p => p.value === 'combo' || p.value <= 1);
   }
-  // 其他所有单位（年/月/周/日/时），返回全部精度选项
   return allPrecisionOptions;
 };
 
@@ -670,7 +395,7 @@ const isFormValid = computed(() => {
 
 
 // ========== 核心逻辑：弹窗控制 ==========
-function openAddModal() { modalTitle.value = '添加自定义倒计时'; activeEventData.value = { id: `new_${Date.now()}`, unit: 'day', decimalPrecision: 0 }; Object.keys(eventForm.value).forEach(k => eventForm.value[k] = ''); isModalOpen.value = true; nextTick(() => formRefs.year.value?.focus()); }
+function openAddModal() { activeMenu.value = null; modalTitle.value = '添加自定义倒计时'; activeEventData.value = { id: `new_${Date.now()}`, unit: 'day', decimalPrecision: 0 }; Object.keys(eventForm.value).forEach(k => eventForm.value[k] = ''); isModalOpen.value = true; nextTick(() => formRefs.year.value?.focus()); }
 function handleEdit(event) {
   activeMenu.value = null;
   modalTitle.value = '编辑事件';
@@ -735,7 +460,23 @@ function saveEvent() {
   updateAllEventsDisplay();
   closeModal();
 }
-function handleDelete(id) { events.value = events.value.filter(e => e.id !== id); saveCustomEvents(events.value); updateAllEventsDisplay(); if (pendingDeleteId.value === id) { pendingDeleteId.value = null; } }
+function handleDelete(id) {
+  events.value = events.value.filter(e => e.id !== id);
+  saveCustomEvents(events.value);
+  updateAllEventsDisplay();
+  if (pendingDeleteId.value === id) { pendingDeleteId.value = null; }
+  
+  const dateAdapterKey = `${id}_date`;
+  const countdownAdapterKey = `${id}_countdown`;
+  if (fontAdapters[dateAdapterKey]) {
+    fontAdapters[dateAdapterKey].destroy();
+    delete fontAdapters[dateAdapterKey];
+  }
+  if (fontAdapters[countdownAdapterKey]) {
+    fontAdapters[countdownAdapterKey].destroy();
+    delete fontAdapters[countdownAdapterKey];
+  }
+}
 function handleMenuDelete(id) { activeMenu.value = null; if (confirm('确定要删除这个事件吗？')) { handleDelete(id); } }
 
 
@@ -769,7 +510,7 @@ function cycleSortOrder() {
 }
 function toggleMultiSelectMode() { isMultiSelectMode.value = !isMultiSelectMode.value; if (!isMultiSelectMode.value) { selectedEventIds.value.clear(); } }
 function handleItemClick(event) { if (!isMultiSelectMode.value) return; if (selectedEventIds.value.has(event.id)) { selectedEventIds.value.delete(event.id); } else { selectedEventIds.value.add(event.id); } }
-function bulkDelete() { if (selectedEventIds.value.size === 0) return; if (confirm(`您确定要删除选中的 ${selectedEventIds.value.size} 个倒计时吗？此操作不可撤销。`)) { events.value = events.value.filter(event => !selectedEventIds.value.has(event.id)); saveCustomEvents(events.value); selectedEventIds.value.clear(); isMultiSelectMode.value = false; updateAllEventsDisplay(); } }
+function bulkDelete() { if (selectedEventIds.value.size === 0) return; if (confirm(`您确定要删除选中的 ${selectedEventIds.value.size} 个倒计时吗？此操作不可撤销。`)) { const idsToDelete = new Set(selectedEventIds.value); events.value = events.value.filter(event => !idsToDelete.has(event.id)); saveCustomEvents(events.value); idsToDelete.forEach(id => handleDelete(id)); selectedEventIds.value.clear(); isMultiSelectMode.value = false; updateAllEventsDisplay(); } }
 
 
 // ========== 核心逻辑：倒计时显示与更新 ==========
@@ -779,20 +520,56 @@ function updateSingleEventDisplay(event) {
   const { finalDisplay, dateTimeDesc } = calculateCustomDifference(event);
   event.finalDisplay = finalDisplay;
   event.dateTimeDesc = dateTimeDesc;
-  nextTick(updateAllFontSizes);
 }
 function updateAllEventsDisplay() { events.value.forEach(event => updateSingleEventDisplay(event)); }
 function mainLoop() { const now = Date.now(); events.value.forEach(event => { if (!event.nextUpdateTime || now >= event.nextUpdateTime) { updateSingleEventDisplay(event); const interval = getEffectiveInterval(event); event.nextUpdateTime = now + interval; } }); animationFrameId = requestAnimationFrame(mainLoop); }
 
 
-// ========== 字号自适应逻辑 (将在后续阶段优化) ==========
-const setElementRef = (el, eventId, type) => { if (el) { if (!elementRefs.value[eventId]) { elementRefs.value[eventId] = {}; } elementRefs.value[eventId][type] = el; } };
-const adjustFontSize = (element) => { if (!element) { return {}; } let currentFontSize = MAX_FONT_SIZE; element.style.fontSize = `${currentFontSize}px`; while (element.scrollWidth > element.clientWidth && currentFontSize > MIN_FONT_SIZE) { currentFontSize -= 0.5; element.style.fontSize = `${currentFontSize}px`; } return { fontSize: `${currentFontSize}px` }; };
-const updateAllFontSizes = () => { for (const eventId in elementRefs.value) { const refs = elementRefs.value[eventId]; if (refs) { if (!fontStyles.value[eventId]) { fontStyles.value[eventId] = {}; } if (refs.date) { fontStyles.value[eventId].date = adjustFontSize(refs.date); } if (refs.countdown) { fontStyles.value[eventId].countdown = adjustFontSize(refs.countdown); } } } };
+// ========== 字号自适应逻辑 ==========
+function setupAllAdapters() {
+  Object.values(fontAdapters).forEach(adapter => adapter.destroy());
+  fontAdapters = {};
+
+  events.value.forEach(event => {
+    const dateColumnEl = dateColumnRefs.value[event.id];
+    const countdownColumnEl = countdownColumnRefs.value[event.id];
+    const dateContentEl = dateContentRefs.value[event.id];
+    const countdownContentEl = countdownContentRefs.value[event.id];
+
+    if (dateColumnEl && dateContentEl) {
+      const dateAdapterKey = `${event.id}_date`;
+      fontAdapters[dateAdapterKey] = createResponsiveFontAdapter({
+        container: dateColumnEl,
+        elements: [dateContentEl],
+        minSize: window.innerWidth <= 800 ? 9 : 12,
+        debounceDelay: 50,
+      });
+    }
+
+    if (countdownColumnEl && countdownContentEl) {
+      const countdownAdapterKey = `${event.id}_countdown`;
+      const elementsToScale = [countdownContentEl, ...countdownContentEl.querySelectorAll('*')];
+      fontAdapters[countdownAdapterKey] = createResponsiveFontAdapter({
+        container: countdownColumnEl,
+        elements: elementsToScale,
+        minSize: window.innerWidth <= 800 ? 9 : 12,
+        debounceDelay: 50,
+      });
+    }
+  });
+}
 
 
-// ========== 交互处理 (将在后续阶段优化) ==========
-function toggleMenu(id) { activeMenu.value = activeMenu.value === id ? null : id; }
+// ========== 交互处理 ==========
+// [修改] 切换菜单状态时，如果是打开操作，则先通过广播网关通知其他组件
+const toggleMenu = (id) => {
+  const willOpenId = activeMenu.value === id ? null : id;
+  if (willOpenId !== null) {
+    // 调用 eventBus 的辅助函数进行广播，注意这里的ID构造方式
+    broadcastMenuOpened(`${COMPONENT_ID}-${id}`);
+  }
+  activeMenu.value = willOpenId;
+};
 function handleUnitChange(id, unit) {
   const event = events.value.find(e => e.id === id);
   if (event) {
@@ -839,11 +616,68 @@ const handleEditShortcut = (event) => handleEdit(event);
 const handleCopyShortcut = (event) => { if (pendingCopyId.value === event.id) { handleCopy(event); pendingCopyId.value = null; } else { pendingCopyId.value = event.id; pendingDeleteId.value = null; setTimeout(() => { if (pendingCopyId.value === event.id) pendingCopyId.value = null; }, 3000); } };
 const handleDeleteShortcut = (event) => { if (pendingDeleteId.value === event.id) { handleDelete(event.id); pendingDeleteId.value = null; } else { pendingDeleteId.value = event.id; pendingCopyId.value = null; setTimeout(() => { if (pendingDeleteId.value === event.id) pendingDeleteId.value = null; }, 3000); } };
 const keyActionMap = { ' ': handleEditShortcut, '/': handleEditShortcut, 'Insert': handleCopyShortcut, '+': handleCopyShortcut, 'Delete': handleDeleteShortcut, '-': handleDeleteShortcut };
-function handleGlobalKeydown(e) { if (isModalOpen.value && (e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (isFormValid.value) saveEvent(); return; } if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); if (activeMenu.value) { activeMenu.value = null; return; } if (pendingCopyId.value || pendingDeleteId.value) { pendingCopyId.value = null; pendingDeleteId.value = null; return; } const activeEl = document.activeElement; const isInModal = activeEl && activeEl.closest('.modal-content'); if (isModalOpen.value && !isInModal) { closeModal(); return; } if (isMultiSelectMode.value) { toggleMultiSelectMode(); return; } return; } const isInputFocused = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'); if (isInputFocused || !hoveredEventId.value) return; const event = events.value.find(e => e.id === hoveredEventId.value); if (!event) return; const action = keyActionMap[e.key]; if (action) { e.preventDefault(); showOperationHint.value = false; action(event); } }
-function handleGlobalClickOrTouch(e) { if (!e.target.closest('.settings-menu-container')) { activeMenu.value = null; } }
+// [修改] 将原 handleGlobalKeydown 和 handleGlobalClickOrTouch 的菜单关闭逻辑抽离和增强
+const closeActiveMenu = () => { activeMenu.value = null; };
+function handleGlobalKeydown(e) {
+  if (isModalOpen.value && (e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (isFormValid.value) saveEvent(); return; }
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    e.preventDefault();
+    if (activeMenu.value) { closeActiveMenu(); return; }
+    if (pendingCopyId.value || pendingDeleteId.value) { pendingCopyId.value = null; pendingDeleteId.value = null; return; }
+    const activeEl = document.activeElement;
+    const isInModal = activeEl && activeEl.closest('.modal-content');
+    if (isModalOpen.value && !isInModal) { closeModal(); return; }
+    if (isMultiSelectMode.value) { toggleMultiSelectMode(); return; }
+    return;
+  }
+  const isInputFocused = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+  if (isInputFocused || !hoveredEventId.value) return;
+  const event = events.value.find(e => e.id === hoveredEventId.value);
+  if (!event) return;
+  const action = keyActionMap[e.key];
+  if (action) { e.preventDefault(); showOperationHint.value = false; action(event); }
+}
+// [新增] 用于处理外部点击关闭菜单的函数
+function handleGlobalClick(e) {
+  if (activeMenu.value === null) return;
+  const activeMenuRef = menuContainerRefs.value[activeMenu.value];
+  if (activeMenuRef && !activeMenuRef.contains(e.target)) {
+    closeActiveMenu();
+  }
+}
+// [新增] 用于处理焦点移出关闭菜单的函数
+function handleGlobalFocus(e) {
+  if (activeMenu.value === null) return;
+  const activeMenuRef = menuContainerRefs.value[activeMenu.value];
+  if (activeMenuRef && !activeMenuRef.contains(e.target)) {
+    closeActiveMenu();
+  }
+}
 
 
 // ========== 生命周期钩子 ==========
+
+onBeforeUpdate(() => {
+  dateColumnRefs.value = {};
+  countdownColumnRefs.value = {};
+  dateContentRefs.value = {};
+  countdownContentRefs.value = {};
+  // [新增] 同时清空菜单容器的引用
+  menuContainerRefs.value = {};
+});
+
+watch(() => events.value.length, () => {
+  nextTick(setupAllAdapters);
+});
+
+let resizeTimeout;
+const handleWindowResize = () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    setupAllAdapters();
+  }, 150);
+};
+
 onMounted(() => {
   const savedEvents = getCustomEvents();
   events.value = savedEvents.map(event => ({
@@ -855,10 +689,26 @@ onMounted(() => {
   customCounter.value = Math.max(0, ...savedEvents.map(e => parseInt(e.name.match(/^自定义(\d+)$/)?.[1] || 0))) + 1;
   updateAllEventsDisplay();
   mainLoop();
-  if (eventsListRef.value) { resizeObserver = new ResizeObserver(() => { updateAllFontSizes(); }); resizeObserver.observe(eventsListRef.value); }
+  
+  nextTick(setupAllAdapters);
+  
+  // [修改] 整合所有全局监听器
+  window.addEventListener('resize', handleWindowResize);
   document.addEventListener('keydown', handleGlobalKeydown);
-  document.addEventListener('click', handleGlobalClickOrTouch, true);
-  document.addEventListener('touchstart', handleGlobalClickOrTouch, true);
+  document.addEventListener('click', handleGlobalClick, true);
+  document.addEventListener('focusin', handleGlobalFocus, true);
+  document.addEventListener('touchstart', handleGlobalClick, true); // 移动端触摸也视为点击
+  
+  // [新增] 使用 eventBus 注册对其他菜单打开事件的监听
+  cleanupMenuListener = listenForOtherMenuOpened(COMPONENT_ID, (broadcasterId) => {
+    // 构造当前组件内所有可能的菜单ID前缀
+    const ownMenuIdPrefix = `${COMPONENT_ID}-`;
+    // 如果广播源不是本组件内的任何一个菜单，则关闭当前激活的菜单
+    if (!broadcasterId.startsWith(ownMenuIdPrefix)) {
+      closeActiveMenu();
+    }
+  });
+
   nextTick(() => {
     if (eventsListRef.value) {
       const sortableOptions = { animation: 220, handle: '.drag-handle, .drag-blank-area', ghostClass: 'drag-ghost', chosenClass: 'drag-chosen', dragClass: 'drag-dragging', onEnd: (evt) => { sortOrder.value = 'manual'; if (sortableInstance) { sortableInstance.option('disabled', false); } if (evt.oldIndex != null && evt.newIndex != null && evt.oldIndex !== evt.newIndex) { const moved = events.value.splice(evt.oldIndex, 1)[0]; events.value.splice(evt.newIndex, 0, moved); saveCustomEvents(events.value); } } };
@@ -866,6 +716,7 @@ onMounted(() => {
       sortableInstance = Sortable.create(eventsListRef.value, sortableOptions);
     }
   });
+
   watch(isMultiSelectMode, (isMulti) => {
     if (isMulti) {
       document.addEventListener('mousedown', handleMouseDown, true);
@@ -885,635 +736,633 @@ onMounted(() => {
     }
   }, { immediate: false });
 });
+
 onUnmounted(() => {
   if (animationFrameId) { cancelAnimationFrame(animationFrameId); }
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  
+  Object.values(fontAdapters).forEach(adapter => adapter.destroy());
+
+  // [修改] 统一移除所有全局监听器
+  window.removeEventListener('resize', handleWindowResize);
   document.removeEventListener('keydown', handleGlobalKeydown);
-  document.removeEventListener('click', handleGlobalClickOrTouch, true);
-  document.removeEventListener('touchstart', handleGlobalClickOrTouch, true);
+  document.removeEventListener('click', handleGlobalClick, true);
+  document.removeEventListener('focusin', handleGlobalFocus, true);
+  document.removeEventListener('touchstart', handleGlobalClick, true);
   document.removeEventListener('mousedown', handleMouseDown, true);
   document.removeEventListener('mousemove', handleMouseMove, true);
   document.removeEventListener('mouseup', handleMouseUp, true);
   document.removeEventListener('touchstart', handleTouchStart, true);
   document.removeEventListener('touchmove', handleTouchMove, true);
   document.removeEventListener('touchend', handleTouchEnd, true);
+  
+  // [新增] 调用 eventBus 返回的清理函数，安全地移除广播监听
+  if (cleanupMenuListener) {
+    cleanupMenuListener();
+  }
+
   if (sortableInstance) sortableInstance.destroy();
   if (operationHintTimer) clearTimeout(operationHintTimer);
   if (operationHintHideTimer) clearTimeout(operationHintHideTimer);
-  if (resizeObserver) { resizeObserver.disconnect(); }
 });
 </script>
 
 <style scoped>
-/* ========== 组件容器与标题 ========== */
-
-/* 自定义倒计时组件的根容器样式 */
+/* ========== 组件根容器 ========== */
 .custom-countdown {
-  margin-bottom: 6px; /* 与下方元素的间距 */
+  margin-bottom: 6px;
+  position: relative;
 }
 
-/* 头部三栏网格布局 */
-.custom-countdown-header.three-column-header {
-  display: grid; /* 使用网格布局 */
-  grid-template-columns:35% 30% 35%; /* 定义三列：左右两列自适应，中间列内容宽度 */
-  align-items: center; /* 垂直居中对齐 */
-  gap: 0px; /* 列间距 */
-  margin-bottom: 20px; /* 与事件列表的间距 */
+/* ========== 头部整体布局 ========== */
+.custom-countdown-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  margin-bottom: 12px;
+  margin-top: -8px;
 }
 
-/* 响应式：屏幕宽度小于800px时，头部变为单列布局 */
-@media (max-width: 800px) {
-  .custom-countdown-header {
-    grid-template-columns: 1fr; /* 变为一列 */
-    gap: 15px; /* 行间距 */
-  }
-}
-
-/* 头部左侧区域，内容靠左 */
+/* ========== 头部左侧区域（现在仅作为占位） ========== */
 .header-zone-left {
   justify-self: start;
-  padding: 10px;
 }
 
-/* 头部中间区域，内容居中 */
-.header-zone-center {
-  justify-self: center;
-}
-
-/* 头部右侧区域，内容靠右 */
+/* ========== 头部右侧区域（按钮容器） ========== */
 .header-zone-right {
   justify-self: end;
-  padding: 10px;
 }
 
-/* 模块标题样式 */
+/* ========== 模块标题 ========== */
 .title {
-  font-size: 16px; /* 字体大小 */
-  color: var(--text-secondary); /* 颜色 */
-  font-weight: 400; /* 字重 */
-  margin: 0; /* 无外边距 */
+  position: absolute;
+  top: 16px;
+  left: 24px;
+  z-index: 5;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  height: 24px;
+  display: flex;
+  align-items: center;
 }
 
-/* 响应式：小屏幕下标题也居中 */
-@media (max-width: 800px) {
-  .title {
-    justify-self: center;
-  }
-}
-
-/* 头部右侧操作按钮容器 */
+/* ========== 头部右侧所有操作的容器 ========== */
 .header-actions {
-  display: flex; /* Flex布局 */
-  justify-content: flex-end; /* 内容靠右 */
-  align-items: center; /* 垂直居中 */
-  gap: 10px; /* 按钮间距 */
-}
-
-/* 响应式：小屏幕下操作按钮居中并可换行 */
-@media (max-width: 800px) {
-  .header-actions {
-    justify-content: center; /* 居中 */
-    flex-wrap: wrap; /* 允许换行 */
-  }
+  display: flex;
+  align-items: top;
+  gap: 10px;
 }
 
 /* ========== 按钮通用与特定样式 ========== */
-
-/* 头部功能按钮的基础样式 */
-.action-btn {
-  width: 40px;
-  height: 36px; /* 高度 */
-  padding: 0 12px; /* 水平内边距 */
-  display: flex; /* Flex布局 */
-  align-items: center; /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
-  gap: 6px; /* 图标与文字间距 */
-  font-size: 14px; /* 字体大小 */
-  background-color: var(--bg-secondary); /* 背景色 */
-  color: var(--text-secondary); /* 文字颜色 */
-  border: 0px solid var(--border-color); /* 边框 */
-  border-radius: 6px; /* 圆角 */
-}
-
-/* 连体按钮组中的按钮无圆角 */
-.joined-btn.action-btn {
-  border-radius: 0;
-}
-
-/* 连体按钮内的SVG图标垂直对齐 */
-.action-btn.joined-btn svg {
-  vertical-align: middle;
-}
-
-/* 按钮悬停效果 */
-.action-btn:hover {
-  background-color: var(--bg-quaternary); /* 改变背景色 */
-  color: var(--text-primary); /* 改变文字颜色 */
-}
-
-/* 按钮激活状态（如排序模式、多选模式开启时） */
-.action-btn.active {
-  background-color: var(--green-primary); /* 主题绿色背景 */
-  color: var(--bg-primary); /* 深色文字 */
-  border-color: var(--green-primary); /* 边框颜色 */
-}
-
-/* 批量删除按钮的特定样式 */
 .bulk-delete-btn {
-  background-color: #5f2120; /* 深红色背景 */
-  color: #ffcdd2; /* 浅红色文字 */
-  border: 1px solid #a13531; /* 红色边框 */
-  height: 36px; /* 高度 */
-  padding: 0 12px; /* 内边距 */
-  display: flex; /* Flex布局 */
-  align-items: center; /* 垂直居中 */
-  gap: 6px; /* 间距 */
-  font-size: 14px; /* 字号 */
-  font-weight: 500; /* 字重 */
-  border-radius: 6px; /* 圆角 */
+  background-color: #5f2120;
+  color: #ffcdd2;
+  border: 1px solid #a13531;
+  height: 36px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-/* 批量删除按钮悬停效果 */
 .bulk-delete-btn:hover {
-  background-color: #d32f2f; /* 亮红色背景 */
-  color: white; /* 白色文字 */
-  border-color: #d32f2f; /* 亮红色边框 */
+  background-color: #d32f2f;
+  color: white;
+  border-color: #d32f2f;
 }
 
-/* “添加倒计时”按钮的特定样式 */
-.add-new-event-btn {
-  height: 36px; /* 高度 */
-  font-size: 14px; /* 字号 */
+/* 连体按钮组的容器 */
+.joined-btn-group {
+  display: flex;
+}
+
+/* 连体按钮组内的单个按钮 */
+.joined-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 16px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 0px solid var(--border-color);
+  border-left-width: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* 单独处理第一个连体按钮 */
+.joined-btn:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  border-left-width: 0px;
+}
+
+/* 单独处理最后一个连体按钮 */
+.joined-btn:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.joined-btn:hover {
+  background-color: var(--bg-quaternary);
+  color: var(--text-primary);
+}
+
+/* 连体按钮的激活状态（例如排序、多选模式开启时） */
+.joined-btn.active {
+  background-color: var(--green-primary);
+  color: var(--bg-primary);
+  border-color: var(--green-primary);
 }
 
 /* ========== 事件列表及条目 ========== */
-
-/* 事件列表容器 */
 .events-list {
-  display: flex; /* Flex布局 */
-  flex-direction: column; /* 垂直排列 */
-  gap: 15px; /* 条目间距 */
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-/* 单个事件条目的容器 */
 .event-container {
-  background: var(--bg-tertiary); /* 背景色 */
-  border-radius: 12px; /* 圆角 */
-  padding: 15px; /* 内边距 */
-  position: relative; /* 相对定位，用于内部绝对定位元素 */
-  overflow: visible; /* 允许菜单弹出外部 */
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; /* 过渡效果 */
-  cursor: default; /* 默认光标 */
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  padding: 15px;
+  position: relative;
+  overflow: visible;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  cursor: default;
 }
 
-/* [新增] 当菜单被激活时，提升整个容器的堆叠层级 */
 .event-container.menu-is-active {
   z-index: 20;
 }
 
-/* 多选模式下被选中的条目样式 */
 .event-container.is-selected {
-  background: var(--bg-quaternary); /* 更亮的背景 */
-  box-shadow: 0 0 0 2px var(--green-primary); /* 绿色外发光 */
-  border-color: var(--green-primary); /* 绿色边框 */
+  background: var(--bg-quaternary);
+  box-shadow: 0 0 0 2px var(--green-primary);
 }
 
-/* 桌面端悬停效果 */
-@media (min-width: 801px) {
-  .event-container:not(.is-selected):hover {
-    background: var(--bg-quaternary);
-  }
-  .event-container.is-selected {
-    cursor: pointer; /* 多选模式下选中项显示可点击手势 */
-  }
-}
-
-/* 事件条目内部内容网格布局 */
 .event-item {
-  position: relative; /* 相对定位 */
-  display: grid; /* 网格布局 */
-  grid-template-columns: minmax(220px, 1fr) 2fr minmax(320px, 2fr) 20px; /* 四列布局 */
-  gap: 20px; /* 列间距 */
-  align-items: center; /* 垂直居中 */
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(60px, 1fr) 2fr minmax(320px, 2fr) 20px;
+  gap: 20px;
+  align-items: center;
 }
 
-/* 响应式：小屏幕下事件条目变为垂直Flex布局 */
-@media (max-width: 800px) {
-  .event-item {
-    display: flex !important; /* 强制Flex布局 */
-    flex-direction: column !important; /* 垂直排列 */
-    align-items: center !important; /* 居中对齐 */
-    width: 100%; /* 占满宽度 */
-    gap: 8px; /* 间距 */
-    text-align: center; /* 文本居中 */
-  }
-}
-
-/* 三个主要信息列的通用样式 */
-.event-date-column,
-.event-name-column,
-.event-countdown-column {
-  display: flex; /* Flex布局 */
-  align-items: center; /* 垂直居中 */
-  font-size: 16px; /* 字号 */
-  color: var(--text-primary); /* 颜色 */
-  font-weight: 500; /* 字重 */
-  text-align: center; /* 文本居中 */
-  transition: color 0.2s; /* 颜色过渡效果 */
-  min-height: 24px; /* 最小高度，防止空内容时塌陷 */
-}
-
-/* 响应式：小屏幕下信息列占满宽度并居中 */
-@media (max-width: 800px) {
-  .event-date-column,
-  .event-name-column,
-  .event-countdown-column {
-    width: 100%; /* 占满宽度 */
-    text-align: center !important; /* 强制居中 */
-    justify-content: center; /* 水平居中 */
-  }
-}
-
-/* 日期和倒计时列不允许换行 */
 .event-date-column,
 .event-countdown-column {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 500;
+  text-align: center;
+  transition: color 0.2s;
+  min-height: 24px;
   white-space: nowrap;
+  overflow: hidden;
 }
 
-/* 事件名称列允许换行 */
 .event-name-column {
-  white-space: normal;
-  word-break: break-all;
+  align-items: center;
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 500;
+  transition: color 0.2s;
+  min-height: 24px;
+  white-space: nowrap ;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
 }
 
-/* 倒计时列中高亮的数字部分样式 */
-:deep(.event-countdown-column strong),
 :deep(.event-countdown-column .combo-num) {
-  color: var(--green-primary); /* 主题绿色 */
-  font-weight: 600; /* 加粗 */
-  margin: 0 4px; /* 水平外边距 */
-  font-style: normal; /* 正常字体样式 */
-  transition: color 0.2s; /* 颜色过渡 */
+  color: var(--green-primary);
+  font-weight: 600;
+  margin: 0 4px;
+  font-style: normal;
+  transition: color 0.2s;
 }
 
-/* 列表为空时的提示信息 */
 .empty-tip {
-  text-align: center; /* 居中 */
-  color: var(--text-tertiary); /* 灰色文字 */
-  font-size: 14px; /* 字号 */
-  padding: 20px; /* 内边距 */
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  padding: 20px;
 }
 
 /* ========== 弹窗样式 ========== */
-
-/* 弹窗遮罩层 */
 .modal-overlay {
-  position: fixed; /* 固定定位 */
-  top: 0; left: 0; right: 0; bottom: 0; /* 铺满全屏 */
-  background: rgba(0, 0, 0, 0.7); /* 半透明黑色背景 */
-  display: flex; /* Flex布局 */
-  align-items: center; /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
-  z-index: 2000; /* 置于顶层 */
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
 }
 
-/* 弹窗内容区域 */
 .modal-content {
-  background: var(--bg-secondary); /* 背景色 */
-  border-radius: 12px; /* 圆角 */
-  padding: 24px; /* 内边距 */
-  min-width: 400px; /* 最小宽度 */
-  max-width: 90vw; /* 最大宽度为视口宽度的90% */
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 90vw;
 }
 
-/* 响应式：小屏幕下弹窗宽度调整 */
-@media (max-width: 800px) {
-  .modal-content {
-    min-width: 90vw;
-  }
-}
-
-/* 弹窗标题 */
 .modal-title {
-  font-size: 18px; /* 字号 */
-  color: var(--text-primary); /* 颜色 */
-  margin-bottom: 20px; /* 与表单的间距 */
-  text-align: center; /* 居中 */
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  text-align: center;
 }
 
-/* 弹窗表单容器 */
 .modal-form {
-  display: flex; /* Flex布局 */
-  flex-direction: column; /* 垂直排列 */
-  gap: 12px; /* 项目间距 */
-  align-items: center; /* 水平居中 */
-  margin-bottom: 20px; /* 与操作按钮的间距 */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-/* 表单中的输入框组（如年月日一组） */
 .modal-form .input-group {
-  display: flex; /* Flex布局 */
-  align-items: center; /* 垂直居中 */
-  gap: 2px; /* 内部元素间距 */
-  justify-content: center; /* 居中 */
-  width: 100%; /* 占满宽度 */
-  margin-bottom: 7px; /* 组间距 */
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 7px;
 }
 
-/* 弹窗操作按钮区域 */
 .modal-actions {
-  display: flex; /* Flex布局 */
-  gap: 10px; /* 按钮间距 */
-  justify-content: flex-end; /* 靠右对齐 */
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
-/* 次要按钮样式（如取消按钮） */
 .button-secondary {
-  background: var(--bg-tertiary); /* 背景色 */
-  color: var(--text-primary); /* 文字颜色 */
-  border: 1px solid var(--border-color); /* 边框 */
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
-/* 次要按钮悬停效果 */
+
 .button-secondary:hover {
   background: var(--border-color);
 }
 
-/* 通用输入框样式 */
 .input {
-  height: 40px; /* 高度 */
-  min-height: 40px; /* 最小高度 */
-  line-height: 40px; /* 行高 */
-  width: 96px; /* 宽度 */
-  padding: 0 8px; /* 水平内边距 */
-  border-radius: 6px; /* 圆角 */
-  border: 1px solid var(--border-color); /* 边框 */
-  background: var(--bg-tertiary); /* 背景色 */
-  color: var(--text-primary); /* 文字颜色 */
-  font-size: 14px; /* 字号 */
-  text-align: center; /* 文本居中 */
-  box-sizing: border-box; /* 盒模型 */
-  outline: none; /* 去除焦点轮廓 */
-  transition: border-color 0.2s, box-shadow 0.2s; /* 过渡效果 */
+  height: 40px;
+  line-height: 40px;
+  width: 96px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 14px;
+  text-align: center;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-/* 输入框获得焦点时的样式 */
 .input:focus {
-  border-color: var(--green-primary); /* 绿色边框 */
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2); /* 绿色外发光 */
+  border-color: var(--green-primary);
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-/* 输入框占位符样式 */
 .input::placeholder {
-  color: var(--text-tertiary); /* 灰色文字 */
-  opacity: 0.5; /* 透明度 */
+  color: var(--text-tertiary);
+  opacity: 0.5;
 }
 
-/* 日期/时间分隔符样式 */
 .date-separator {
-  width: 10px; /* 宽度 */
-  text-align: center; /* 居中 */
-  color: var(--text-secondary); /* 颜色 */
-  font-size: 16px; /* 字号 */
-  margin: 0 2px; /* 水平外边距 */
+  width: 10px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 16px;
+  margin: 0 2px;
 }
 
-/* 事件名称输入框特定样式 */
 .event-name-input {
-  width: 324px; /* 宽度 */
-  min-width: 120px; /* 最小宽度 */
-  max-width: 100%; /* 最大宽度 */
-  margin: 0; /* 无外边距 */
+  width: 324px;
+  max-width: 100%;
 }
 
-/* 响应式：小屏幕下事件名称输入框宽度调整 */
-@media (max-width: 800px) {
-  .event-name-input {
-    min-width: calc(90vw - 80px);
-  }
+/* ========== 拖拽与菜单 ========== */
+.desktop-only {
+  display: flex;
 }
 
-/* ========== 【修改】拖拽与菜单 ========== */
-
-/* 仅在桌面端显示的元素 */
-.desktop-only { display: none; }
-/* 仅在移动端显示的元素 */
-.mobile-only { display: block; position: absolute; left: 0; top: 0; bottom: 0; right: 0; z-index: 5; cursor: move; }
-
-/* 响应式：控制桌面/移动端元素的显示切换 */
-@media (min-width: 801px) {
-  .desktop-only { display: flex !important; }
-  .mobile-only { display: none !important; }
+.mobile-only {
+  display: none;
 }
 
-/* 拖拽手柄样式 */
 .drag-handle {
-  position: absolute; /* 绝对定位 */
-  top: 50%; /* 垂直居中 */
-  transform: translateY(-50%); /* 精确垂直居中 */
-  width: 20px; /* 宽度 */
-  height: 40px; /* 高度 */
-  display: flex; /* Flex布局 */
-  align-items: center; /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
-  cursor: move; /* 移动手势 */
-  color: var(--text-tertiary); /* 颜色 */
-  opacity: 0; /* 默认透明 */
-  transition: opacity 0.2s, color 0.2s, background 0.2s, transform 0.2s; /* 过渡效果 */
-  z-index: 10; /* 层级 */
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: move;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  z-index: 10;
 }
 
-/* 响应式：桌面端悬停时显示拖拽手柄 */
-@media (min-width: 801px) {
-  .event-container:hover .drag-handle {
-    opacity: 1;
-  }
+.event-container:hover .drag-handle {
+  opacity: 1;
 }
 
-/* 左侧拖拽手柄定位 */
-.drag-handle-left { left: -20px; }
-/* 右侧拖拽手柄定位 */
-.drag-handle-right { right: -20px; }
+.drag-handle-left {
+  left: -20px;
+}
 
-/* 拖拽手柄悬停效果 */
+.drag-handle-right {
+  right: -20px;
+}
+
 .drag-handle:hover {
-  color: var(--green-primary); /* 绿色图标 */
-  background: var(--bg-tertiary); /* 背景色 */
-  transform: translateY(-50%) scale(1.1); /* 放大效果 */
+  color: var(--green-primary);
 }
 
-/* Sortable.js拖拽过程中的样式 */
 .drag-chosen,
 .drag-dragging {
-  box-shadow: 0 8px 40px rgba(52, 206, 99, .22), 0 2px 18px #0004; /* 阴影 */
-  transform: scale(1.03); /* 放大 */
-  z-index: 100; /* 置于顶层 */
-  cursor: move; /* 移动手势 */
+  box-shadow: 0 8px 40px rgba(52, 206, 99, .22), 0 2px 18px #0004;
+  transform: scale(1.03);
+  z-index: 100;
+  cursor: grabbing;
 }
 
-/* Sortable.js拖拽占位符的样式 */
 .drag-ghost {
-  opacity: 0.2 !important; /* 半透明 */
-  background: var(--bg-tertiary); /* 背景色 */
-  box-shadow: none !important; /* 无阴影 */
-  transform: scale(1) !important; /* 不放大 */
+  opacity: 0.2 !important;
+  background: var(--bg-tertiary) !important;
+  box-shadow: none !important;
 }
 
-/* 【新增】事件条目内菜单的容器，绝对定位到右上角 */
 .settings-menu-container {
-  position: absolute; top: -8px; right: -10px; z-index: 10;
+  position: absolute;
+  top: 50%;
+  right: -8px;
+  transform: translateY(-50%);
+  z-index: 15;
 }
 
-/* 【新增】菜单触发按钮（三点）样式，与CountdownCard统一 */
 .menu-trigger-btn {
-  width: 32px; height: 32px; border: none; border-radius: 8px;
-  background: none; color: var(--text-secondary);
-  font-size: 16px; font-weight: bold; cursor: pointer;
-  transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 【新增】菜单触发按钮的悬停和激活状态 */
 .menu-trigger-btn:hover,
 .menu-trigger-btn.active {
   background: var(--border-color);
   color: var(--text-primary);
 }
 
-/* 【新增】下拉菜单面板样式 */
 .settings-dropdown-panel {
-  position: absolute; top: calc(100% + 5px); right: 0;
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
   background-color: var(--bg-secondary);
-  border-radius: 8px; padding: 0;
+  border-radius: 8px;
+  padding: 0;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  z-index: 11; border: 1px solid var(--border-color);
-  display: flex; overflow: hidden;
+  z-index: 11;
+  border: 1px solid var(--border-color);
+  display: flex;
+  overflow: hidden;
 }
 
-/* 【新增】下拉菜单中的列容器 */
 .dropdown-column {
-  display: flex; flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 【新增】为非首列的列添加左边框作为分隔线 */
 .dropdown-column:not(:first-child) {
   border-left: 1px solid var(--border-color);
 }
 
-/* 【新增】菜单选项按钮样式 */
 .menu-option-btn {
-  height: 30px; display: flex; align-items: center; justify-content: center;
-  border: none; background: var(--bg-secondary); color: var(--text-primary);
-  padding: 0 14px; font-size: 14px; font-weight: 500;
-  cursor: pointer; transition: background-color 0.2s;
-  white-space: nowrap; border-bottom: 1px solid var(--border-color);
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-color);
   border-radius: 0;
 }
 
-/* 【新增】菜单选项中删除按钮的特定颜色 */
 .menu-option-btn.delete {
   color: #f44336;
 }
-/* 【新增】删除按钮悬停效果 */
+
 .menu-option-btn.delete:hover {
   background-color: rgba(244, 67, 54, 0.1);
 }
 
-/* 【新增】移除列中最后一个按钮的下边框 */
 .dropdown-column .menu-option-btn:last-child {
   border-bottom: none;
 }
 
-/* 【新增】菜单选项按钮悬停效果 */
 .menu-option-btn:hover {
   background: var(--bg-quaternary);
 }
 
-/* 【新增】菜单选项激活状态 */
 .menu-option-btn.active {
   background: var(--green-primary);
   color: var(--bg-primary);
 }
 
-/* ========== 框选矩形样式 ========== */
+/* ========== 框选与交互提示 ========== */
 .marquee-select-box {
-  position: fixed; /* 固定定位 */
-  background-color: rgba(76, 175, 80, 0.2); /* 半透明绿色背景 */
-  border: 2px solid var(--green-primary); /* 绿色边框 */
-  z-index: 9998; /* 高层级 */
-  pointer-events: none; /* 不响应鼠标事件 */
+  position: fixed;
+  background-color: rgba(76, 175, 80, 0.2);
+  border: 2px solid var(--green-primary);
+  z-index: 9998;
+  pointer-events: none;
 }
 
-/* ========== 交互提示与动画 ========== */
-
-/* 提示浮层的通用样式 */
 .operation-hint,
 .copy-confirm-hint,
 .delete-confirm-hint {
-  position: fixed; padding: 6px 12px; border-radius: 6px;
-  font-size: 14px; font-weight: 500; white-space: nowrap;
-  pointer-events: none; z-index: 9999; text-align: center;
+  position: fixed;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+  text-align: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   transform: translateY(-50%);
 }
 
-/* 操作快捷键提示浮层样式 */
-.operation-hint { background: var(--bg-tertiary); opacity: 0.9; }
-.hint-content { display: flex; flex-direction: column; gap: 2px; }
-.hint-item { display: flex; justify-content: space-between; gap: 12px; }
-.hint-key { color: var(--text-secondary); }
-.hint-action { color: var(--text-primary); }
-.hint-item:last-child .hint-action { color: #ff7575; }
+.operation-hint {
+  background: var(--bg-tertiary);
+  opacity: 0.9;
+}
 
-/* 确认复制/删除的提示浮层样式 */
-.copy-confirm-hint { background: var(--green-primary); color: #fff; }
-.delete-confirm-hint { background: #d32f2f; color: #fff; }
+.hint-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
-/* 提示浮层的淡入淡出过渡效果 */
+.hint-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hint-key {
+  color: var(--text-secondary);
+}
+
+.hint-action {
+  color: var(--text-primary);
+}
+
+.hint-item:last-child .hint-action {
+  color: #ff7575;
+}
+
+.copy-confirm-hint {
+  background: var(--green-primary);
+  color: #fff;
+}
+
+.delete-confirm-hint {
+  background: #d32f2f;
+  color: #fff;
+}
+
 .hint-fade-enter-active,
 .hint-fade-leave-active {
   transition: opacity 0.2s ease-out;
 }
+
 .hint-fade-enter-from,
 .hint-fade-leave-to {
   opacity: 0;
 }
 
-/* 等待确认操作时的脉冲动画 */
 @keyframes pulse-animation {
   50% {
     background-color: var(--pulse-bg-color);
-    border-color: var(--pulse-border-color);
     box-shadow: 0 0 20px 2px var(--pulse-shadow-color);
   }
 }
 
-/* 等待复制的条目应用脉冲动画 */
 .event-container.pending-copy {
   --pulse-bg-color: rgba(76, 175, 80, 0.1);
-  --pulse-border-color: rgba(76, 175, 80, 0.5);
   --pulse-shadow-color: rgba(76, 175, 80, 0.3);
   animation: pulse-animation 0.5s ease-in-out infinite;
-  border: 1px solid transparent;
 }
 
-/* 等待删除的条目应用脉冲动画 */
 .event-container.pending-delete {
   --pulse-bg-color: rgba(244, 67, 54, 0.1);
-  --pulse-border-color: rgba(244, 67, 54, 0.5);
   --pulse-shadow-color: rgba(244, 67, 54, 0.3);
   animation: pulse-animation 0.5s ease-in-out infinite;
-  border: 1px solid transparent;
 }
 
-/* 等待复制的条目内文字颜色变化 */
-.event-container.pending-copy :deep(div),
-.event-container.pending-copy :deep(strong),
-.event-container.pending-copy :deep(.combo-num) {
-  color: var(--green-secondary) !important;
-}
+/* ========== 统一响应式布局 ========== */
+@media (max-width: 800px) {
+  /* --- 布局调整 --- */
+  .custom-countdown-header {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
 
-/* 等待删除的条目内文字颜色变化 */
-.event-container.pending-delete :deep(div),
-.event-container.pending-delete :deep(strong),
-.event-container.pending-delete :deep(.combo-num) {
-  color: #f44336 !important;
+  .header-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .event-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    width: 100%;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .event-name-column,
+  .event-date-column,
+  .event-countdown-column {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* ▼ [新增] 以下是专门为移动端菜单位置添加的样式规则 ▼ */
+  .settings-menu-container {
+    top: -16px;
+    right: -16px;
+    transform: none;
+  }
+
+  .modal-content {
+    min-width: 90vw;
+  }
+
+  .event-name-input {
+    min-width: calc(90vw - 80px);
+  }
+
+  /* --- 元素显隐控制 --- */
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: block !important;
+    position: absolute;
+    left: 0; top: 0; bottom: 0; right: 0;
+    z-index: 5;
+    cursor: grab;
+  }
+  
+  /* --- 标题定位 --- */
+  .title {
+    top: 12px;
+    left: 16px;
+  }
 }
 </style>

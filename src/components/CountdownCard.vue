@@ -28,7 +28,7 @@
         右上角设置菜单的容器。
         - @click.stop 阻止事件冒泡，防止点击菜单时关闭自身。
       -->
-      <div class="settings-menu-container" @click.stop>
+      <div class="settings-menu-container" ref="menuContainerRef" @click.stop>
         <!-- “三点”菜单触发按钮 -->
         <button class="menu-trigger-btn" @click="toggleMenu" :class="{ active: isMenuOpen }" title="设置">
           ⋮
@@ -90,13 +90,13 @@
         <h3 class="title">{{ title }}</h3>
       </div>
 
-      <!-- 主要倒计时数字的容器 -->
-      <div class="number-container">
-        <!-- 动态绑定字体大小样式，实现自适应缩放 -->
-        <span class="number" :style="numberStyle">{{ displayNumber }}</span>
+      <!-- 为数字容器添加 ref，它将作为舞台 -->
+      <div class="number-container" ref="numberContainerRef">
+        <!-- 为数字span添加ref，它将作为演员 -->
+        <span class="number" ref="numberRef">{{ displayNumber }}</span>
       </div>
 
-      <!-- 显示当前单位的文本 -->
+      <!-- 单位div (不参与缩放) -->
       <div class="unit">{{ unit }}</div>
     </div>
   </div>
@@ -104,9 +104,14 @@
 
 <script setup>
 // 导入Vue组合式API的核心函数
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+// 导入新的字号自适应管理器
+import { createResponsiveFontAdapter } from '../utils/fontSizeManager.js';
+// [新增] 从全局广播网关导入通信函数
+import { broadcastMenuOpened, listenForOtherMenuOpened } from '../utils/eventBus.js';
 
-// 定义组件接收的props
+
+// 定义组件接收的props (维持原状)
 const props = defineProps({
   title: String,
   value: Number,
@@ -119,10 +124,27 @@ const props = defineProps({
   progress: { type: Number, required: true }
 });
 
-// 定义组件可以向父组件触发的事件
+
+// [新增] 定义本组件在广播系统中的唯一身份ID，使用props.type确保其唯一性
+const COMPONENT_ID = `countdown-card-${props.type}`;
+// [新增] 用于存储 eventBus 返回的清理函数
+let cleanupMenuListener = null;
+
+
+// 菜单容器的引用
+const menuContainerRef = ref(null);
+
+// 为需要自适应的元素及其容器添加ref
+const numberContainerRef = ref(null);
+const numberRef = ref(null);
+
+// 用于存储适配器实例的变量
+let fontAdapter = null;
+
+// 定义组件可以向父组件触发的事件 (维持原状)
 const emit = defineEmits(['precision-change', 'week-start-change', 'decimal-change']);
 
-// 定义单位选项的静态数据
+// 定义单位选项的静态数据 (维持原状)
 const precisions = [
   { value: 'day', label: '天' },
   { value: 'hour', label: '时' },
@@ -130,105 +152,117 @@ const precisions = [
   { value: 'second', label: '秒' }
 ];
 
-// 定义精度选项的静态数据
+// 定义精度选项的静态数据 (维持原状)
 const decimalOptions = [
   { value: 0, label: '0' },
   { value: 1, label: '0.0' },
   { value: 2, label: '0.00' }
 ];
 
-// 【动态过滤】计算属性：根据当前选择的单位，动态返回可用的精度选项列表
+// 【动态过滤】计算属性：根据当前选择的单位，动态返回可用的精度选项列表 (维持原状)
 const availableDecimalOptions = computed(() => {
   if (props.precision === 'second') {
-    // 单位为“秒”时，只显示“0”精度选项
     return decimalOptions.filter(opt => opt.value === 0);
   }
   if (props.precision === 'minute') {
-    // 单位为“分”时，显示“0”和“0.0”精度选项
     return decimalOptions.filter(opt => opt.value <= 1);
   }
-  // 其他单位（天、时），显示所有精度选项
   return decimalOptions;
 });
 
-// 状态变量：控制设置菜单是否打开
+// 状态变量：控制设置菜单是否打开 (维持原状)
 const isMenuOpen = ref(false);
 
-// 方法：切换菜单的显示/隐藏状态
+// [修改] 切换菜单的显示/隐藏状态，在打开前先进行广播
 const toggleMenu = () => {
-  isMenuOpen.value = !isMenuOpen.value;
+  const willOpen = !isMenuOpen.value;
+  if (willOpen) {
+    // 调用 eventBus 的辅助函数进行广播
+    broadcastMenuOpened(COMPONENT_ID);
+  }
+  isMenuOpen.value = willOpen;
 };
 
-// 方法：关闭菜单
+// 方法：关闭菜单 (维持原状)
 const closeMenu = () => {
   isMenuOpen.value = false;
 };
 
+// [新增] 新增一个统一的全局点击处理函数
+const handleGlobalClick = (event) => {
+  // 如果菜单未打开，或点击发生在菜单内部，则不执行任何操作
+  if (!isMenuOpen.value || (menuContainerRef.value && menuContainerRef.value.contains(event.target))) {
+    return;
+  }
+  // 否则，关闭菜单
+  closeMenu();
+};
+
+// [新增] 新增一个统一的全局按键处理函数
+const handleGlobalKeydown = (e) => {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeMenu();
+  }
+};
+
+// 全局焦点变化处理函数 (维持原状，逻辑与handleGlobalClick类似，但捕获Tab等焦点变化)
+const handleGlobalFocus = (event) => {
+  if (!isMenuOpen.value) return;
+  if (menuContainerRef.value && !menuContainerRef.value.contains(event.target)) {
+    closeMenu();
+  }
+};
+
 // 生命周期钩子：组件挂载后，添加全局事件监听器
 onMounted(() => {
-  document.addEventListener('click', closeMenu);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' || e.key === 'Esc') {
-      closeMenu();
-    }
-  });
+  // [修改] 添加对全局点击、键盘和焦点事件的监听
+  document.addEventListener('click', handleGlobalClick, true);
+  document.addEventListener('keydown', handleGlobalKeydown);
+  document.addEventListener('focusin', handleGlobalFocus, true);
+  // [新增] 使用 eventBus 注册对其他菜单打开事件的监听
+  cleanupMenuListener = listenForOtherMenuOpened(COMPONENT_ID, closeMenu);
 });
 
 // 生命周期钩子：组件卸载前，移除全局事件监听器
 onUnmounted(() => {
-  document.removeEventListener('click', closeMenu);
+  // [修改] 移除所有在 onMounted 中添加的监听器，防止内存泄漏
+  document.removeEventListener('click', handleGlobalClick, true);
+  document.removeEventListener('keydown', handleGlobalKeydown);
+  document.removeEventListener('focusin', handleGlobalFocus, true);
+  // [新增] 调用 eventBus 返回的清理函数，安全地移除广播监听
+  if (cleanupMenuListener) {
+    cleanupMenuListener();
+  }
 });
 
-// 计算属性：根据当前单位 prop 返回对应的文本
+// 计算属性：根据当前单位 prop 返回对应的文本 (维持原状)
 const unit = computed(() =>
   ({ day: '天', hour: '小时', minute: '分钟', second: '秒' }[props.precision] || '天')
 );
 
-// 计算属性：将数值格式化为包含正确小数位的字符串
+// 计算属性：将数值格式化为包含正确小数位的字符串 (维持原状)
 const displayNumber = computed(() => {
   const value = props.value ?? 0;
   return value.toFixed(props.decimalPrecision);
 });
 
-// 计算属性：根据数字长度动态计算字体大小
-const numberFontSize = computed(() => {
-  const len = (displayNumber.value || '').replace('.', '').length;
-  if (window.innerWidth <= 768) { // 移动端
-    if (len <= 4) return '40px';
-    if (len >= 12) return '14px';
-    return `${Math.round(40 - (len - 4) * 2.7)}px`;
-  } else { // 桌面端
-    if (len <= 4) return '52px'; // 高度减半后，字体也适当减小
-    if (len >= 10) return '24px';
-    return `${Math.round(52 - (len - 4) * 5)}px`;
-  }
-});
-
-// 计算属性：整合字体样式
-const numberStyle = computed(() => ({
-  fontSize: numberFontSize.value,
-  width: '100%',
-  textAlign: 'center',
-  letterSpacing: '1px' // 字体小时，间距也小些
-}));
-
-// 方法：处理单位更改
+// 方法：处理单位更改 (维持原状)
 const handlePrecisionChange = value => {
   emit('precision-change', props.type, value);
   closeMenu();
 };
-// 方法：处理精度更改
+// 方法：处理精度更改 (维持原状)
 const handleDecimalChange = value => {
   emit('decimal-change', props.type, value);
   closeMenu();
 };
-// 方法：处理周首日更改
+// 方法：处理周首日更改 (维持原状)
 const handleWeekStartChange = value => {
   emit('week-start-change', value);
   closeMenu();
 };
 
-// 侦听器：自动修正不合法的精度组合
+// 侦听器：自动修正不合法的精度组合 (维持原状)
 watch([() => props.precision, () => props.decimalPrecision], ([newPrecision, dec]) => {
   if (newPrecision === 'second' && dec > 0)
     emit('decimal-change', props.type, 0);
@@ -236,29 +270,15 @@ watch([() => props.precision, () => props.decimalPrecision], ([newPrecision, dec
     emit('decimal-change', props.type, 1);
 });
 
-// --- 波浪动画逻辑 ---
+// --- 波浪动画逻辑 (维持原状) ---
 const cardW = 260;
-const cardH = 320; // SVG viewBox 尺寸不变，以保持波形比例
+const cardH = 320;
 const waveOffset = ref(0);
 let waveTimer;
-onMounted(() => {
-  const anchorWaveLen = Array.from({ length: 6 }, () => 75 + Math.random() * 30);
-  const anchorAmp = Array.from({ length: 6 }, () => 1.2 + Math.random() * 1);
-  const myWavePhase = Math.random() * Math.PI * 2;
-  // ... (内部函数定义移入，避免闭包问题)
-  waveTimer = setInterval(() => {
-    waveOffset.value += 1;
-    // ...
-  }, 32);
-});
-onUnmounted(() => { if (waveTimer) clearInterval(waveTimer); });
-// ... (liquidPath 计算属性保持不变)
 const liquidPath = computed(() => {
-  // ... (此部分无变化)
-  const topY = 320 * props.progress; // 注意：这里用viewBox的高度，而不是css高度
+  const topY = 320 * (1 - props.progress); // 液面高度反转，从下往上涨
   const phase = waveOffset.value;
   let d = `M0,320 L0,${topY} `;
-  // 简化波形计算的示例...
   for (let x = 1; x < cardW - 1; x += 6) {
     const y = topY + Math.sin((x / 75) * 2 * Math.PI + phase / 39) * 1.5;
     d += `${x},${y} `;
@@ -266,15 +286,67 @@ const liquidPath = computed(() => {
   d += `L${cardW},${topY} L${cardW},320 Z`;
   return d;
 });
+
+
+// --- 新的字号自适应逻辑 ---
+
+/**
+ * 设置或重置字号自适应适配器。
+ */
+const setupFontAdapter = () => {
+  if (fontAdapter) {
+    fontAdapter.destroy();
+    fontAdapter = null;
+  }
+
+  // 确保舞台(.number-container)和演员(.number)都存在
+  if (numberContainerRef.value && numberRef.value) {
+    
+    fontAdapter = createResponsiveFontAdapter({
+      // 舞台是 .number-container
+      container: numberContainerRef.value,
+      // 演员只有 .number
+      elements: [numberRef.value],
+      minSize: window.innerWidth <= 800 ? 24 : 32,
+      debounceDelay: 50,
+    });
+  }
+};
+
+// 侦听 displayNumber 的变化。当数字长度改变时，重新设置适配器。
+watch(displayNumber, () => {
+  nextTick(() => {
+    setupFontAdapter();
+  });
+});
+
+// 在组件挂载后，首次设置适配器
+onMounted(() => {
+  waveTimer = setInterval(() => {
+    waveOffset.value += 1;
+  }, 32);
+
+  nextTick(() => {
+    setupFontAdapter();
+  });
+});
+
+// 在组件卸载前，销毁适配器和定时器，防止内存泄漏
+onUnmounted(() => {
+  if (waveTimer) clearInterval(waveTimer);
+  if (fontAdapter) {
+    fontAdapter.destroy();
+  }
+});
+
 </script>
 
 <style scoped>
 /* ========== 卡片与内容布局 ========== */
 .countdown-card.card-cup {
   position: relative;
-  overflow: visible; /* 必须为visible，以便菜单能弹出卡片外部 */
+  overflow: visible;
   z-index: 0;
-  /* 【高度减半】将卡片高度减小 */
   height: 160px;
 }
 .liquid-svg, .card-content {
@@ -286,39 +358,50 @@ const liquidPath = computed(() => {
   z-index: 2;
   display: flex; flex-direction: column;
   align-items: center; 
-  justify-content: end;  /* 将内容对齐到底部 */
-  padding-bottom: 15px;  /* 增加底部内边距 */
-  
-  /* 【关键】确保这个容器的高度是100%，这样 justify-content 才有空间可以分配 */
-  height: 100%;
-  box-sizing: border-box; /* 确保 padding 不会增加元素总高度 */
+  justify-content: center;
+  box-sizing: border-box; 
+  /* 卡片自身的padding，负责整体布局 */
+  padding: 15px; 
 }
 .card-header {
-  position: absolute; top: 16px; left: 16px;
+  position: absolute; top: 16px; left: 24px;
   right: 16px; text-align: left;
   min-height: 28px;
 }
 .title {
-  font-size: 16px; /* 字体随卡片减小 */
+  font-size: 16px;
   color: var(--text-secondary);
   font-weight: 400; margin: 0; line-height: 1.2;
 }
 
 /* ========== 数字与单位 ========== */
 .number-container {
-  display: flex; align-items: flex-end; justify-content: end;
+  display: flex; 
+  align-items: flex-end; 
+  justify-content: center;
   width: 100%;
-  min-height: 60px; /* 高度减半 */
-  margin-bottom: 2px; /* 间距减小 */
+  margin-top: 15px; 
+  margin-bottom: 15px;
+  line-height: 1;
+  height: 60px;
+  padding: 0 30px;
+  box-sizing: border-box;
+  /*border: 1px dashed #88f099; /* 浅绿色虚线，便于调试 */
 }
 .number {
-  display: inline-block; font-weight: 600; color: v-bind(color);
-  white-space: nowrap; text-align: center; width: auto;
+  display: block;
+  font-weight: 600; 
+  color: v-bind(color);
+  white-space: nowrap; 
+  text-align: center;
+  font-size: 52px;
+  /*border: 1px dashed red; /* 浅绿色虚线，便于调试 */
 }
 .unit {
-  font-size: 30px; /* 字体减小 */
-  color: var(--text-secondary);
   font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1;
+  font-size: 30px;
 }
 
 /* ========== 设置菜单样式 (极致紧凑版) ========== */
@@ -329,16 +412,12 @@ const liquidPath = computed(() => {
   width: 32px;
   height: 32px;
   border: none;
-  /* 【修改】从圆形(50%)改为方形圆角(8px) */
   border-radius: 8px;
-  /* 【修改】从透明背景改为有默认背景色 */
   background: none;
-  /* 【修改】调整颜色、字号和字重以匹配 */
   color: var(--text-secondary);
   font-size: 16px;
   font-weight: bold;
   cursor: pointer;
-  /* 【修改】过渡效果统一为 'all' */
   transition: all 0.2s;
   display: flex;
   align-items: center;
@@ -352,43 +431,41 @@ const liquidPath = computed(() => {
 .settings-dropdown-panel {
   position: absolute; top: calc(100% + 5px); right: 0;
   background-color: var(--bg-secondary);
-  border-radius: 8px; /* 四角圆角 */
-  padding: 0; /* 无内边距，让按钮填满 */
+  border-radius: 8px;
+  padding: 0;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
   z-index: 11;
   border: 1px solid var(--border-color);
   display: flex;
-  overflow: hidden; /* 让内部按钮被裁剪成圆角 */
+  overflow: hidden;
 }
 .dropdown-column {
   display: flex;
   flex-direction: column;
 }
-/* 【分隔线】为非首列的列容器添加左边框作为分隔线 */
 .dropdown-column:not(:first-child) {
   border-left: 1px solid var(--border-color);
 }
 .menu-option-btn {
-  height: 30px; /* 菜单中选项的行高 */
+  height: 30px;
   display: flex;
-  align-items: center; /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
+  align-items: center;
+  justify-content: center;
   border: none;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  padding: 0px 6px; /* 调整内边距以适应更紧凑的布局 */
+  padding: 0px 6px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   text-align: center;
   transition: background-color 0.2s;
   white-space: nowrap;
-  /* 垂直连体效果 */
   border-bottom: 1px solid var(--border-color);
   border-radius: 0;
 }
 .dropdown-column .menu-option-btn:last-child {
-  border-bottom: none; /* 最后一项无下边框 */
+  border-bottom: none;
 }
 .menu-option-btn:hover {
   background: var(--bg-quaternary);
@@ -401,14 +478,20 @@ const liquidPath = computed(() => {
 }
 
 /* ========== 响应式调整 ========== */
-@media (max-width:768px){
+@media (max-width:800px){
   .countdown-card {
-    /* 【高度减半】移动端高度也减半 */
     height: 140px;
   }
-  .card-header { top: 12px; left: 12px; right: 12px; }
+  .card-header { top: 12px; left: 16px; right: 12px; }
   .settings-menu-container { top: 8px; right: 8px; }
-  .number { font-size: 40px; margin-bottom: 16px;} /* 字体大小再调整 */
-  .unit { font-size: 24px; }
+  .number-container {
+    padding: 0 15px;
+  }
+  .number { 
+    font-size: 48px;
+  }
+  .unit {
+    font-size: 24px;
+  }
 }
 </style>

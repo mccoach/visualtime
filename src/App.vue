@@ -125,7 +125,7 @@
     -->
     <footer class="footer footer-vertical">
       <!-- 网站口号 -->
-      <span class="slogan">光阴 VisualTime - 让时间可视化</span>
+      <span class="slogan">光阴 VisualTime - 让时间看得见</span>
       <!-- 联系方式容器 -->
       <div class="contact-box">
         <!--
