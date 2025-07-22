@@ -7,7 +7,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 
 // 应用全局样式，如果 global.css 单独放，可以这样全局引入
-// import './styles/global.css'
+import './styles/global.css'
 
 // 创建应用并挂载到 #app 元素
 createApp(App).mount('#app')

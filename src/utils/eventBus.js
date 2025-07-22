@@ -58,16 +58,19 @@ export function broadcastMenuOpened(componentId) {
  * 组件可以通过这个函数注册一个回调，当其他菜单打开时，该回调会被执行。
  * 
  * @param {string} ownId - 当前监听组件自身的唯一ID。
- * @param {function} callback - 当监听到【其他】菜单打开时需要执行的回调函数（通常是 closeMenu()）。
+ * @param {function(string): void} callback - 当监听到【其他】菜单打开时需要执行的回调函数。它会接收到广播者的ID。
  * @returns {function} - 返回一个“清理函数”。在组件卸载时调用此函数，可以自动移除事件监听，防止内存泄漏。
  */
 export function listenForOtherMenuOpened(ownId, callback) {
   // 定义事件处理函数
   const handler = (event) => {
-    // 检查广播源的ID是否【不等于】自身的ID
-    if (event.detail && event.detail.id !== ownId) {
-      // 如果是其他组件发出的广播，则执行传入的回调函数
-      callback();
+    // [修复] 从 event.detail 中安全地获取广播者的ID
+    const broadcasterId = event.detail?.id;
+
+    // [修复] 检查广播源的ID是否存在，且【不等于】自身的ID
+    if (broadcasterId && broadcasterId !== ownId) {
+      // [修复] 如果是其他组件发出的广播，则执行传入的回调函数，并将广播者ID传给它
+      callback(broadcasterId);
     }
   };
 

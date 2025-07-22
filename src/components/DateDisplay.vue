@@ -121,17 +121,19 @@ onUnmounted(() => {
   height: 120px;
   display: flex;
   align-items: center;
-  padding: 10px;
+  padding: 16px;
   box-sizing: border-box;
 }
 
 .date-content {
   display: grid;
   grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr);
-  gap: clamp(20px, 3vw, 40px);
+  gap: 20px;
   align-items: center;
   width: 100%; 
   height: 100%;
+  padding-right: 30px;
+  /*border: 1px dashed #88f099;/* [保留] 保留您的测试用边框 */
 }
 
 .date-info {
@@ -148,23 +150,20 @@ onUnmounted(() => {
 .current-date { 
   font-size: 36px; 
   font-weight: 600;  
-  margin: 0; 
-  line-height: 1.2; 
+  line-height: 1; 
   color: var(--text-primary);
   white-space: nowrap;
-  /* [核心修复] 移除 width: 100%。让元素的宽度由其内容自然决定。 */
-  /* width: 100%; */ 
+  text-align: center; 
   /*border: 1px dashed #88f099;/* [保留] 保留您的测试用边框 */
 }
 
 .lunar-date { 
   font-size: 16px; 
   color: var(--text-secondary); 
-  line-height: 1.4; 
-  margin: 8px 0 0 0;
+  line-height: 1; 
+  margin: 12px 0 0 0;
+  text-align: center; 
   white-space: nowrap;
-  /* [核心修复] 移除 width: 100%。*/
-  /* width: 100%; */
   /*border: 1px dashed #881099;/* [保留] 保留您的测试用边框 */
 }
 
@@ -177,7 +176,6 @@ onUnmounted(() => {
 .current-time {
   display: flex; 
   align-items: center;
-  font-family: var(--font-mono);
   /*border: 1px dashed #111099;/* [保留] 保留您的测试用边框 */
 }
 .num-block { display: inline-block; width: 84px; text-align: center; font-size: 72px; font-weight: 600; color: var(--green-primary);}
@@ -206,7 +204,7 @@ onUnmounted(() => {
     width: 100%;
   }
   .current-date { font-size: 32px; }
-  .num-block { width: 66px; font-size: 60px;}
-  .sep-block { width: 32px; font-size: 60px;}
+  .num-block { width: 56px; font-size: 56px;}
+  .sep-block { width: 30px; font-size: 40px;}
 }
 </style>

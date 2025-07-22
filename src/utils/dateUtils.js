@@ -1,39 +1,66 @@
 // ========== src/utils/dateUtils.js ==========
-// ... (文件上半部分到 getWeekRemaining 为止，都保持不变) ...
 
 import { DateTime, Duration, Settings } from 'luxon';
 import { Solar } from 'lunar-javascript';
 
 Settings.defaultLocale = 'zh-cn';
 
+/**
+ * 获取农历、干支、生肖及节气信息。
+ * [已按要求修改] 节气日的计算逻辑已从“精确到秒”调整为“精确到天”，
+ * 即只要节气发生的时刻在某一日内，则该日全天都视为此节气日。
+ * @param {DateTime|Date} [date=DateTime.now()] - 需要计算的日期，默认为当前时间。
+ * @returns {object} 包含完整农历信息的对象。
+ */
 export const getLunarInfo = (date = DateTime.now()) => {
   try {
     const nativeDate = date instanceof DateTime ? date.toJSDate() : date;
     const solar = Solar.fromDate(nativeDate);
     const lunar = solar.getLunar();
+
+    const jieQiTable = lunar.getJieQiTable();
+    const y = solar.getYear(), m = solar.getMonth(), d = solar.getDay();
+    const dateSolar = Solar.fromYmd(y, m, d);
+
+    // ▼▼▼ 核心修改点 ▼▼▼
+    // 将儒略日(JD)加上0.5天再向下取整，是为了将其从“天文学日”（以中午12点为分界）
+    // 校正为我们日常习惯的“自然日”（以午夜0点为分界）。
+    // 这样，无论一天中的哪个时刻，其对应的整数日都是相同的。
+    const dateJulian = Math.floor(dateSolar.getJulianDay() + 0.5);
+    const allJieQi = Object.entries(jieQiTable)
+      .map(([name, sol]) => ({ name, jd: Math.floor(sol.getJulianDay() + 0.5) })) // 对节气表也做同样处理
+      .sort((a, b) => a.jd - b.jd);
+    // ▲▲▲ 核心修改结束 ▲▲▲
+
+    let prevJieQi = null, nextJieQi = null;
+
+    // 循环查找上一个和下一个节气日
+    for (let i = 0; i < allJieQi.length; i++) {
+      if (allJieQi[i].jd <= dateJulian) {
+        prevJieQi = allJieQi[i];
+      }
+      if (allJieQi[i].jd > dateJulian && !nextJieQi) {
+        nextJieQi = allJieQi[i];
+      }
+    }
+
+    let jieQiInfo = '';
+    // 如果上一个节气的日期恰好就是今天，则今天就是节气日
+    if (prevJieQi && prevJieQi.jd === dateJulian) {
+      jieQiInfo = prevJieQi.name;
+    }
+    // 如果今天在上一个和下一个节气之间
+    else if (prevJieQi && nextJieQi && dateJulian < nextJieQi.jd) {
+      // 因为都是整数天，直接相减就是天数差
+      const dayNum = dateJulian - prevJieQi.jd;
+      jieQiInfo = `${prevJieQi.name}第${dayNum}天`;
+    }
+
     const ganZhiYear = lunar.getYearInGanZhi();
     const zodiac = lunar.getYearShengXiao();
     const lunarMonth = lunar.getMonthInChinese() + '月';
     const lunarDay = lunar.getDayInChinese();
-    const jieQiTable = lunar.getJieQiTable();
-    const y = solar.getYear(), m = solar.getMonth(), d = solar.getDay();
-    const dateSolar = Solar.fromYmd(y, m, d);
-    const dateJulian = dateSolar.getJulianDay();
-    const allJieQi = Object.entries(jieQiTable)
-      .map(([name, sol]) => ({ name, jd: sol.getJulianDay() }))
-      .sort((a, b) => a.jd - b.jd);
-    let prevJieQi = null, nextJieQi = null;
-    for (let i = 0; i < allJieQi.length; i++) {
-      if (allJieQi[i].jd <= dateJulian) prevJieQi = allJieQi[i];
-      if (allJieQi[i].jd > dateJulian && !nextJieQi) nextJieQi = allJieQi[i];
-    }
-    let jieQiInfo = '';
-    if (prevJieQi && prevJieQi.jd === dateJulian) {
-      jieQiInfo = prevJieQi.name;
-    } else if (prevJieQi && nextJieQi && dateJulian < nextJieQi.jd) {
-      const dayNum = Math.ceil(dateJulian - prevJieQi.jd + 1);
-      jieQiInfo = `${prevJieQi.name}第${dayNum}天`;
-    }
+
     return {
       ganZhiYear,
       zodiac,
@@ -95,7 +122,6 @@ export const getWeekRemaining = (precision = 'day', decimalPrecision = 0, weekSt
   return calculateRemaining(now, endOfWeek, precision, decimalPrecision);
 };
 
-// --- 自定义倒计时的统一计算函数 ---
 export const calculateCustomDifference = (event) => {
   try {
     const target = DateTime.fromObject({
@@ -161,7 +187,6 @@ export const calculateCustomDifference = (event) => {
     const yearNum = target.year;
     const yearDisplay = yearNum < 0 ? `公元前 ${Math.abs(yearNum)}` : `${yearNum}`;
 
-    // [修改] 使用模板字符串和 luxon 的 toFormat 标记，在数字和汉字之间添加空格
     const dateTimeDesc = `${yearDisplay} 年 ${target.toFormat('MM 月 dd 日 HH:mm:ss')}`;
     
     return { finalDisplay, dateTimeDesc };

@@ -392,5 +392,5 @@ onUnmounted(() => {
   - @import './styles/global.css'; 将会应用在整个应用中。
   - 这个组件本身没有 scoped 样式，所有样式由全局CSS文件控制，保持了代码的简洁。
 */
-@import './styles/global.css';
+/*@import './styles/global.css';*/
 </style>
