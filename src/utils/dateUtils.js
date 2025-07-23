@@ -53,7 +53,7 @@ export const getLunarInfo = (date = DateTime.now()) => {
     else if (prevJieQi && nextJieQi && dateJulian < nextJieQi.jd) {
       // 因为都是整数天，直接相减就是天数差
       const dayNum = dateJulian - prevJieQi.jd;
-      jieQiInfo = `${prevJieQi.name}第${dayNum}天`;
+      jieQiInfo = `${prevJieQi.name}第${dayNum + 1}天`;
     }
 
     const ganZhiYear = lunar.getYearInGanZhi();
