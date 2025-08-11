@@ -2,16 +2,27 @@
 
 /**
  * =================================================================================
- * VisualTime 字号及布局自适应管理器 (Font & Layout Manager) v9.2 - Smart Sizing Engine
+ * VisualTime 字号及布局自适应管理器 (Font & Layout Manager) v9.4 - Toolkit Unified
  * ---------------------------------------------------------------------------------
- * 架构核心：智能盒模型驱动的有效宽度缩放 (Smart Box-Sizing Driven Scaling)
+ * 新增（可选工具，向后兼容）：
+ * 1) getEffectiveWidth(el): number
+ *    - 计算元素“有效宽度”（按 box-sizing 修正 padding）
+ * 2) makeFontSchedulers(setupFn)
+ *    - 返回 { scheduleImmediate, scheduleFrame }
+ *    - scheduleImmediate: 内容变更场景，nextTick 内完成（避免跨帧抖动）
+ *    - scheduleFrame: 结构/尺寸变更，requestAnimationFrame 合并
+ * 3) observeContentWidth(el, callback, { threshold=0 })
+ *    - 监听文本/子树变化，按 scrollWidth 改变判定，触发回调；返回 disconnect()
+ * 4) ensureAdapterSlot(slot, { container, elements, options, forceRecreate })
+ *    - 统一“刷新优先 / 绑定变化或内容宽度变化才重建”的逻辑封装
  *
- * 【设计原则】 (最终版)
- * 1.  **关注点分离 (Separation of Concerns)**：CSS完全负责布局，包括内边距(padding)和盒模型(box-sizing)。JS的职责仅限于在内容将要溢出时，对内容本身进行缩放。
- * 2.  **智能有效宽度计算 (Smart Effective Width Calculation)**：算法能自动识别容器的 `box-sizing` 模式，并据此精确计算出真正的“有效宽度”（纯内容区域宽度），作为缩放的唯一基准。
- * 3.  **内容整体缩放 (Content Holistic Scaling)**：将内容相关的CSS属性（如fontSize, letterSpacing等）视为一个整体，在超出有效宽度时进行等比例缩放。
- * 4.  **尊重CSS意图 (Respect for CSS Intent)**：完全尊重并依赖CSS定义的布局框架，代码更直观、健壮。
- * 5.  **高性能与响应式 (High Performance & Responsive)**：结合 `ResizeObserver` 和防抖（debounce）技术，高效地监听容器尺寸变化，并仅在必要时执行重算，确保流畅的响应式体验。
+ * 保留与扩展（仍向后兼容）：
+ * - createResponsiveFontAdapter(options):
+ *    observeContainerResize?: boolean = true   // 关闭内部容器RO（集中监听场景）
+ *    effectiveWidthProvider?: () => number     // 外部供给有效宽度（集中测量场景）
+ *
+ * 注意：
+ * - 所有函数声明采用 function 声明，避免TDZ
  * =================================================================================
  */
 
@@ -20,61 +31,80 @@ const originalStylesCache = new WeakMap();
 
 // 定义需要被等比例缩放的CSS属性列表
 export const SCALABLE_PROPERTIES = [
-  'fontSize',
-  'width',
-  'height',
-  'marginLeft',
-  'marginRight',
-  'paddingLeft',
-  'paddingRight',
-  'letterSpacing',
-  'wordSpacing'
+  "fontSize",
+  "width",
+  "height",
+  "marginLeft",
+  "marginRight",
+  "paddingLeft",
+  "paddingRight",
+  "letterSpacing",
+  "wordSpacing",
 ];
 
 /**
- * (内部工具) 读取并缓存一个元素的原始布局样式。
- * 如果缓存中已存在，则直接返回；否则，进行计算并存入缓存。
- * @param {HTMLElement} element - 需要读取样式的DOM元素。
- * @returns {Object} - 包含所有需缩放属性的原始像素值的对象。
+ * 计算元素“有效宽度”（按 box-sizing 修正 padding）
+ * @param {HTMLElement} el
+ * @returns {number}
+ */
+export function getEffectiveWidth(el) {
+  if (!el) return 0;
+  const cs = window.getComputedStyle(el);
+  const w = parseFloat(cs.width) || 0;
+  const pl = parseFloat(cs.paddingLeft) || 0;
+  const pr = parseFloat(cs.paddingRight) || 0;
+  return cs.boxSizing === "border-box" ? Math.max(0, w - pl - pr) : w;
+}
+
+/**
+ * (内部) 读取并缓存一个元素的原始布局样式与原始内容宽度
+ * @param {HTMLElement} element
+ * @returns {{[prop:string]:number, totalWidth:number}}
  */
 function getOrCacheOriginalStyles(element) {
   if (originalStylesCache.has(element)) {
     return originalStylesCache.get(element);
   }
-
   const style = window.getComputedStyle(element);
   const original = {};
-  
-  SCALABLE_PROPERTIES.forEach(prop => {
+  SCALABLE_PROPERTIES.forEach((prop) => {
     original[prop] = parseFloat(style[prop]) || 0;
   });
-
-  original.totalWidth = element.scrollWidth + original.marginLeft + original.marginRight;
-
+  original.totalWidth =
+    element.scrollWidth + original.marginLeft + original.marginRight;
   originalStylesCache.set(element, original);
   return original;
 }
 
 /**
- * (核心算法 v9.2) 基于智能计算的有效宽度，对一组元素进行整体等比例缩放。
- *
- * @param {Object} options - 配置对象。
- * @param {HTMLElement} options.container - 作为宽度基准的容器元素。
- * @param {NodeListOf<HTMLElement> | HTMLElement[]} options.elements - 需要一起进行缩放的元素集合。
- * @param {number} options.minSize - 允许的最小字体大小（像素）。
- * @returns {Object} - 返回包含详细适配信息的对象。
+ * (核心算法) 基于智能计算的有效宽度，对一组元素进行整体等比例缩放
+ * - 支持 effectiveWidthProvider 由外部供给有效宽度（集中测量场景）
+ * @param {Object} options
+ * @param {HTMLElement} options.container
+ * @param {NodeListOf<HTMLElement>|HTMLElement[]} options.elements
+ * @param {number} options.minSize
+ * @param {() => number} [options.effectiveWidthProvider]
+ * @returns {{success:boolean, scaleRatio?:number, containerEffectiveWidth?:number, originalTotalWidth?:number, finalTotalWidth?:number, error?:string}}
  */
 export function scaleElementsProportionally(options) {
-  const { container, elements, minSize } = options;
+  const { container, elements, minSize, effectiveWidthProvider } = options;
 
-  if (!container || !elements || elements.length === 0 || typeof minSize !== 'number') {
-    return { success: false, error: '缺少必要参数 (container, elements, minSize)' };
+  if (
+    !container ||
+    !elements ||
+    elements.length === 0 ||
+    typeof minSize !== "number"
+  ) {
+    return {
+      success: false,
+      error: "缺少必要参数 (container, elements, minSize)",
+    };
   }
 
   let originalTotalWidth = 0;
   let minOriginalFontSize = Infinity;
-  
-  const elementMetas = Array.from(elements).map(el => {
+
+  const elementMetas = Array.from(elements).map((el) => {
     const original = getOrCacheOriginalStyles(el);
     originalTotalWidth += original.totalWidth;
     if (original.fontSize < minOriginalFontSize) {
@@ -85,58 +115,31 @@ export function scaleElementsProportionally(options) {
 
   if (minOriginalFontSize === Infinity) minOriginalFontSize = minSize;
 
-  // 智能计算有效宽度
-  const containerStyle = window.getComputedStyle(container);
-  const width = parseFloat(containerStyle.width);
-  const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
-  const paddingRight = parseFloat(containerStyle.paddingRight) || 0;
+  // 1) 优先使用外部供给的“有效宽度”
   let effectiveWidth;
-
-  if (containerStyle.boxSizing === 'border-box') {
-    effectiveWidth = width - paddingLeft - paddingRight;
-  } else {
-    effectiveWidth = width;
+  if (typeof effectiveWidthProvider === "function") {
+    const provided = Number(effectiveWidthProvider());
+    effectiveWidth = Number.isFinite(provided) ? provided : 0;
   }
-  
-  let scaleRatio = 1.0;
 
-  if (originalTotalWidth > effectiveWidth) {
+  // 2) 如无外部供给，则按容器计算
+  if (effectiveWidth == null || effectiveWidth <= 0) {
+    effectiveWidth = getEffectiveWidth(container);
+  }
+
+  let scaleRatio = 1.0;
+  if (originalTotalWidth > effectiveWidth && effectiveWidth > 0) {
     scaleRatio = effectiveWidth / originalTotalWidth;
   }
 
   const finalMinElementSize = minOriginalFontSize * scaleRatio;
-  if (finalMinElementSize < minSize) {
+  if (finalMinElementSize < minSize && minOriginalFontSize > 0) {
     scaleRatio = minSize / minOriginalFontSize;
   }
-  
-  // ========== DEBUG START: 实时监控关键数据 ==========
-  // 您可以随时用 /* ... */ 将此代码块注释掉来禁用监控
-  /*
-  console.groupCollapsed(`[FontAdapter Debug] - 舞台: .${container.className}`);
-    console.log("--- 1. 有效宽度计算 ---");
-    console.log("盒模型 (box-sizing):", containerStyle.boxSizing);
-    console.log("计算样式 width (数值):", width);
-    console.log("计算样式 padding (数值):", `${paddingLeft} (左) + ${paddingRight} (右)`);
-    if (containerStyle.boxSizing === 'border-box') {
-      console.log("计算公式: width - paddingLeft - paddingRight");
-    } else {
-      console.log("计算公式: width");
-    }
-    console.log("%c=> 有效宽度 (Effective Width):", "color: #33ccff; font-weight: bold;", effectiveWidth);
 
-    console.log("--- 2. 内容宽度计算 ---");
-    console.log("%c=> 内容宽度 (Content Width):", "color: #ff9900; font-weight: bold;", originalTotalWidth);
-
-    console.log("--- 3. 缩放决策 ---");
-    console.log("条件 (内容 > 有效):", `${originalTotalWidth.toFixed(2)} > ${effectiveWidth.toFixed(2)}`, "=>", originalTotalWidth > effectiveWidth);
-    console.log("%c=> 缩放比例 (Scale Ratio):", "color: #4caf50; font-weight: bold;", scaleRatio.toFixed(4));
-  console.groupEnd();
-  */
-  // ========== DEBUG END ==========
-
-  elementMetas.forEach(meta => {
+  elementMetas.forEach((meta) => {
     const { element, original } = meta;
-    SCALABLE_PROPERTIES.forEach(prop => {
+    SCALABLE_PROPERTIES.forEach((prop) => {
       element.style[prop] = `${original[prop] * scaleRatio}px`;
     });
   });
@@ -146,52 +149,72 @@ export function scaleElementsProportionally(options) {
     scaleRatio,
     containerEffectiveWidth: effectiveWidth,
     originalTotalWidth,
-    finalTotalWidth: originalTotalWidth * scaleRatio
+    finalTotalWidth: originalTotalWidth * scaleRatio,
   };
 }
 
-
 /**
- * (原子工具) 创建一个带防抖功能的函数。
- * @param {Function} func - 需要防抖的函数。
- * @param {number} delay - 延迟时间（ms）。
- * @returns {Function} - 防抖处理后的新函数。
+ * (原子工具) 创建一个带防抖功能的函数
+ * @param {Function} func
+ * @param {number} delay
+ * @returns {Function}
  */
 function createDebouncedAdjuster(func, delay) {
   let timeoutId;
-  return function(...args) {
+  return function (...args) {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func.apply(this, args), delay);
   };
 }
 
 /**
- * (v9.2 响应式适配器) 创建一个当容器尺寸变化时自动进行等比例缩放的适配器。
- * 
- * @param {Object} options - 与 scaleElementsProportionally 相同的配置，外加防抖延迟。
- * @param {number} [options.debounceDelay=50] - 尺寸变化时的防抖延迟（ms）。
- * @returns {Object} - 一个包含 refresh 和 destroy 方法的控制器对象。
+ * (响应式适配器) 创建一个当容器尺寸变化时自动进行等比例缩放的适配器
+ * - 新增 observeContainerResize / effectiveWidthProvider
+ * @param {Object} options
+ * @param {HTMLElement} options.container
+ * @param {NodeListOf<HTMLElement>|HTMLElement[]} options.elements
+ * @param {number} options.minSize
+ * @param {number} [options.debounceDelay=50]
+ * @param {boolean} [options.observeContainerResize=true]
+ * @param {() => number} [options.effectiveWidthProvider]
+ * @returns {{result?:any, refresh:Function, destroy:Function}}
  */
 export function createResponsiveFontAdapter(options) {
-  const { container, debounceDelay = 50 } = options;
+  const {
+    container,
+    debounceDelay = 50,
+    observeContainerResize = true,
+    effectiveWidthProvider,
+  } = options;
+
   let observer = null;
   let lastResult = null;
 
-  const performAdaptation = () => {
+  function performAdaptation() {
     lastResult = scaleElementsProportionally(options);
     return lastResult;
-  };
-  
+  }
+
   performAdaptation();
-  
-  if (container && typeof window !== 'undefined' && window.ResizeObserver) {
-    const debouncedCallback = createDebouncedAdjuster(performAdaptation, debounceDelay);
+
+  if (
+    container &&
+    typeof window !== "undefined" &&
+    window.ResizeObserver &&
+    observeContainerResize
+  ) {
+    const debouncedCallback = createDebouncedAdjuster(
+      performAdaptation,
+      debounceDelay
+    );
     observer = new ResizeObserver(debouncedCallback);
     observer.observe(container);
   }
-  
+
   return {
-    get result() { return lastResult; },
+    get result() {
+      return lastResult;
+    },
     refresh: performAdaptation,
     destroy() {
       if (observer) {
@@ -199,28 +222,124 @@ export function createResponsiveFontAdapter(options) {
         observer = null;
       }
       if (options.elements) {
-        Array.from(options.elements).forEach(el => {
-            SCALABLE_PROPERTIES.forEach(prop => {
-                if (el.style[prop]) {
-                    el.style[prop] = '';
-                }
-            });
-            originalStylesCache.delete(el);
+        Array.from(options.elements).forEach((el) => {
+          SCALABLE_PROPERTIES.forEach((prop) => {
+            if (el.style[prop]) {
+              el.style[prop] = "";
+            }
+          });
+          originalStylesCache.delete(el);
         });
       }
-    }
+    },
   };
 }
 
-// 导出版本信息
-export const VERSION = '9.2.0';
+/**
+ * 调度器工厂：返回“立即（nextTick）/帧合并（rAF）”两个调度函数
+ * - scheduleImmediate：内容变化使用，避免跨帧抖动
+ * - scheduleFrame：结构变化使用，合并同一帧内多次刷新
+ * @param {Function} setupFn 要调度的执行函数
+ * @returns {{ scheduleImmediate: Function, scheduleFrame: Function }}
+ */
+export function makeFontSchedulers(setupFn) {
+  function scheduleImmediate() {
+    // 延迟到DOM更新微任务后，保证与本轮DOM变更同帧完成，避免先渲染后缩放的闪动
+    Promise.resolve().then(() => {
+      setupFn();
+    });
+  }
+  let rafPending = false;
+  function scheduleFrame() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      setupFn();
+    });
+  }
+  return { scheduleImmediate, scheduleFrame };
+}
+
+/**
+ * 监听“内容宽度（scrollWidth）变化”的工具
+ * - 用于文本/子树变化频繁的场景（如组合精度）
+ * - 返回 disconnect() 以便清理
+ * @param {HTMLElement} el
+ * @param {(changed:boolean, curWidth:number, prevWidth:number) => void} callback
+ * @param {{threshold?:number}} [opts]
+ * @returns {Function} disconnect
+ */
+export function observeContentWidth(el, callback, opts = {}) {
+  if (!el || typeof MutationObserver === "undefined") {
+    return () => {};
+  }
+  let last = el.scrollWidth || 0;
+  const threshold = Number.isFinite(opts.threshold) ? opts.threshold : 0;
+
+  const observer = new MutationObserver(() => {
+    const cur = el.scrollWidth || 0;
+    const changed = Math.abs(cur - last) > threshold;
+    if (changed) {
+      callback(true, cur, last);
+      last = cur;
+    } else {
+      callback(false, cur, last);
+    }
+  });
+
+  observer.observe(el, { childList: true, characterData: true, subtree: true });
+  return () => {
+    try {
+      observer.disconnect();
+    } catch {}
+  };
+}
+
+/**
+ * 统一保障“适配器槽位”的创建/刷新逻辑
+ * - 刷新优先：仅当 forceRecreate 或 绑定目标变更 时重建
+ * - 自动写回 slot.containerEl / slot.elements / slot.needsRecreate
+ * @param {Object} slot 适配器槽位对象（外部持有）
+ * @param {{
+ *  container: HTMLElement,
+ *  elements: HTMLElement[],
+ *  options: Parameters<typeof createResponsiveFontAdapter>[0],
+ *  forceRecreate?: boolean
+ * }} cfg
+ * @returns {Object} slot
+ */
+export function ensureAdapterSlot(slot, cfg) {
+  const { container, elements, options, forceRecreate } = cfg;
+  const targetChanged =
+    slot.containerEl !== container ||
+    !(slot.elements && slot.elements[0] === elements[0]);
+
+  if (!slot.adapter || forceRecreate || targetChanged) {
+    if (slot.adapter) slot.adapter.destroy();
+    slot.adapter = createResponsiveFontAdapter(options);
+    slot.containerEl = container;
+    slot.elements = elements;
+    slot.needsRecreate = false;
+  } else {
+    slot.adapter.refresh();
+  }
+  return slot;
+}
+
+// 版本/算法信息
+export const VERSION = "9.4.0";
 export const ALGORITHM = {
-  name: 'Smart Box-Sizing Driven Scaling',
-  description: '智能盒模型驱动的有效宽度缩放',
+  name: "Smart Box-Sizing Driven Scaling",
+  description:
+    "智能盒模型驱动的有效宽度缩放（支持外部宽度供给/容器监听关闭/调度与观察工具）",
   features: [
-    '自动识别box-sizing，精确计算有效宽度',
-    'CSS完全负责布局(含padding)，JS只负责内容缩放',
-    '以纯内容区宽度(有效宽度)为缩放基准',
-    '高性能，响应式，尊重并兼容所有CSS单位'
-  ]
+    "自动识别box-sizing，精确计算有效宽度",
+    "CSS负责布局，JS只负责内容缩放",
+    "可外部供给有效宽度，集中监听父容器",
+    "可关闭内部容器ResizeObserver",
+    "内容宽度变化观察器（组合精度友好）",
+    "双调度器：nextTick同步与rAF合并",
+    "高性能，响应式，尊重CSS单位",
+  ],
 };

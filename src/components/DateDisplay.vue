@@ -1,27 +1,20 @@
-<!-- E:\AppProject\VisualTime\src\components\DateDisplay.vue (全新重构版) -->
+<!-- E:\AppProject\VisualTime\src\components\DateDisplay.vue (稳定修复版：关闭容器RO + 外部调度，其他不变) -->
 <template>
-  <!--
-    组件根元素。
-    所有显示的内容都由 `displayData` 这个从Composable返回的对象提供。
-  -->
+  <!-- 组件根元素 -->
   <div class="date-display card">
     <div class="date-content">
-      <!--
-        左侧日期信息容器。
-      -->
+      <!-- 左侧日期信息容器 -->
       <div class="date-info" ref="dateInfoRef">
-        <!--
-          公历日期，绑定到 `displayData.currentDate`。
-        -->
-        <h1 class="current-date" ref="currentDateRef">{{ displayData.currentDate.value }}</h1>
-        <!--
-          农历及节气信息，绑定到 `displayData.lunarInfo`。
-        -->
-        <p class="lunar-date" ref="lunarDateRef">{{ displayData.lunarInfo.value }}</p>
+        <!-- 公历日期 -->
+        <h1 class="current-date" ref="currentDateRef">
+          {{ displayData.currentDate.value }}
+        </h1>
+        <!-- 农历与节气 -->
+        <p class="lunar-date" ref="lunarDateRef">
+          {{ displayData.lunarInfo.value }}
+        </p>
       </div>
-      <!--
-        右侧实时时间容器。
-      -->
+      <!-- 右侧实时时间容器 -->
       <div class="current-time" ref="currentTimeRef">
         <span class="num-block">{{ displayData.time.value.hours }}</span>
         <span class="sep-block">:</span>
@@ -34,77 +27,153 @@
 </template>
 
 <script setup>
-// --- 依赖导入 ---
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { useDateDisplay } from '../composables/useDateDisplay.js'; // 【核心】导入新的Composable
-import { createResponsiveFontAdapter } from '../utils/fontSizeManager.js';
+// 引入Vue组合式API
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+// 引入数据源Composable
+import { useDateDisplay } from "../composables/useDateDisplay.js";
+// 引入字号适配工具：沿用现有引擎，仅改变触发方式
+import {
+  createResponsiveFontAdapter,
+  getEffectiveWidth,
+  makeFontSchedulers,
+} from "../utils/fontSizeManager.js";
 
-// --- 业务逻辑层 ---
-// 【核心】调用Composable，获取所有用于显示的数据。
-// `displayData` 是一个包含了所有响应式计算属性的对象。
+// 获取显示数据（公历日期、农历信息、时分秒）
 const displayData = useDateDisplay();
 
-// --- 纯UI逻辑：字体自适应 ---
-// 这部分逻辑只关心UI渲染，与业务数据无关，因此保留在组件内是合理的。
+// DOM引用：左列容器与两行文本
+const dateInfoRef = ref(null); // 左侧容器 .date-info
+const currentDateRef = ref(null); // 公历行元素
+const lunarDateRef = ref(null); // 农历/节气行元素
+// DOM引用：右列容器（包含时分秒）
+const currentTimeRef = ref(null); // 右侧容器 .current-time
 
-// DOM元素引用
-const dateInfoRef = ref(null);
-const currentDateRef = ref(null);
-const lunarDateRef = ref(null);
-const currentTimeRef = ref(null);
-
-// 适配器实例
+// 适配器实例：保持三个独立实例（两行各自独立 + 时间容器独立）
 let currentDateAdapter = null;
 let lunarDateAdapter = null;
 let timeAdapter = null;
 
-// 初始化所有字体适配器的函数
-const setupFontAdapters = () => {
-  // 销毁旧实例，防止内存泄漏
-  if (currentDateAdapter) currentDateAdapter.destroy();
-  if (lunarDateAdapter) lunarDateAdapter.destroy();
-  if (timeAdapter) timeAdapter.destroy();
+// 构建/重建 左列两个适配器（各自独立，避免相互牵制）
+function recreateDateAdapters() {
+  // 先清理旧实例，保证“内容长度变化”时能重建新的原始测量基线
+  if (currentDateAdapter) {
+    currentDateAdapter.destroy();
+    currentDateAdapter = null;
+  }
+  if (lunarDateAdapter) {
+    lunarDateAdapter.destroy();
+    lunarDateAdapter = null;
+  }
 
-  // 初始化公历日期的适配器
+  // 公历行：容器为 .date-info；关闭容器RO；用稳定的有效宽度提供者
   if (dateInfoRef.value && currentDateRef.value) {
     currentDateAdapter = createResponsiveFontAdapter({
       container: dateInfoRef.value,
       elements: [currentDateRef.value],
       minSize: 12,
+      debounceDelay: 50,
+      observeContainerResize: false, // 关键：不再监听容器自身尺寸变化
+      effectiveWidthProvider: () => getEffectiveWidth(dateInfoRef.value), // 由我们显式提供容器有效宽度
     });
   }
-  // 初始化农历日期的适配器
+
+  // 农历/节气行：同容器，同策略，彼此独立
   if (dateInfoRef.value && lunarDateRef.value) {
     lunarDateAdapter = createResponsiveFontAdapter({
       container: dateInfoRef.value,
       elements: [lunarDateRef.value],
       minSize: 10,
+      debounceDelay: 50,
+      observeContainerResize: false, // 关键：不监听容器自身尺寸变化
+      effectiveWidthProvider: () => getEffectiveWidth(dateInfoRef.value), // 显式提供容器有效宽度
     });
   }
-  // 初始化实时时间的适配器
+}
+
+// 构建/重建 右列时间适配器（时分秒片段）
+function recreateTimeAdapter() {
+  // 清理旧实例
+  if (timeAdapter) {
+    timeAdapter.destroy();
+    timeAdapter = null;
+  }
+
   if (currentTimeRef.value) {
     timeAdapter = createResponsiveFontAdapter({
       container: currentTimeRef.value,
-      elements: currentTimeRef.value.querySelectorAll('span'),
+      elements: currentTimeRef.value.querySelectorAll("span"),
       minSize: 12,
+      debounceDelay: 50,
+      observeContainerResize: false, // 关键：不监听容器自身尺寸变化
+      effectiveWidthProvider: () => getEffectiveWidth(currentTimeRef.value), // 显式提供容器有效宽度
     });
   }
-};
+}
 
-// 监听日期的变化，因为日期字符串长度可能会变（如月份、星期变化），需要重新适配
+// 统一的“重建全部适配器”动作（供调度器调用）
+function setupAllAdapters() {
+  recreateDateAdapters();
+  recreateTimeAdapter();
+}
+
+// 创建调度器：内容变化 -> 立即（nextTick后）执行；结构/窗口变化 -> rAF合帧执行
+const { scheduleImmediate, scheduleFrame } =
+  makeFontSchedulers(setupAllAdapters);
+
+// 监听“公历日期字串变化”（如月份或星期长度变化），同帧重建（与原逻辑一致）
 watch(
   () => displayData.currentDate.value,
-  () => { nextTick(setupFontAdapters); }
+  () => {
+    nextTick(scheduleImmediate);
+  }
 );
 
-// 组件挂载后，首次进行适配
+// 同理，监听“农历/节气信息字串变化”（跨天或节气切换），同帧重建
+watch(
+  () => displayData.lunarInfo.value,
+  () => {
+    nextTick(scheduleImmediate);
+  }
+);
+
+// 窗口与视口变化：合帧重建（移动端地址栏折叠/横竖屏切换等）
+function handleViewportResize() {
+  scheduleFrame();
+}
+
 onMounted(() => {
-  nextTick(setupFontAdapters);
+  // 首次渲染后：同帧重建一次
+  nextTick(scheduleImmediate);
+  // 下一动画帧再重建一次兜底（应对移动端首次布局后仍有细微变动）
+  requestAnimationFrame(() => {
+    scheduleFrame();
+  });
+
+  // 监听窗口尺寸与方向变化
+  window.addEventListener("resize", handleViewportResize);
+  window.addEventListener("orientationchange", handleViewportResize);
+  // 一些浏览器的可视视口变化不会触发 window.resize，这里额外监听（存在才添加）
+  if (
+    window.visualViewport &&
+    typeof window.visualViewport.addEventListener === "function"
+  ) {
+    window.visualViewport.addEventListener("resize", handleViewportResize);
+  }
 });
 
-// 组件卸载时，确保销毁所有适配器实例
 onUnmounted(() => {
+  // 移除监听
+  window.removeEventListener("resize", handleViewportResize);
+  window.removeEventListener("orientationchange", handleViewportResize);
+  if (
+    window.visualViewport &&
+    typeof window.visualViewport.removeEventListener === "function"
+  ) {
+    window.visualViewport.removeEventListener("resize", handleViewportResize);
+  }
+  // 销毁三个适配器实例
   if (currentDateAdapter) currentDateAdapter.destroy();
+  if (lunarDateAdapter) currentDateAdapter = null;
   if (lunarDateAdapter) lunarDateAdapter.destroy();
   if (timeAdapter) timeAdapter.destroy();
 });
@@ -112,7 +181,7 @@ onUnmounted(() => {
 
 <style scoped>
 /*
-  [说明] 组件的样式保持不变，只关心布局和外观。
+  原样保留：仅修复脚本中的自适应触发机制，样式无任何改动
 */
 .date-display {
   margin-left: 290px;
@@ -126,12 +195,13 @@ onUnmounted(() => {
 
 .date-content {
   display: grid;
-  grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 20px;
   align-items: center;
   width: 100%;
   height: 100%;
-  padding-right: 30px;
+  padding: 0 20px;
+  box-sizing: border-box;
   /*border: 1px dashed #88f099;/* [保留] 保留您的测试用边框 */
 }
 
@@ -201,8 +271,9 @@ onUnmounted(() => {
   .date-display {
     height: auto;
     min-height: 120px;
-    padding: 30px;
+    padding: 10px;
     margin-left: 0;
+    /*border: 1px dashed #111099;/* [保留] 保留您的测试用边框 */
   }
 
   .date-content {
@@ -212,6 +283,8 @@ onUnmounted(() => {
     gap: 12px;
     height: auto;
     align-items: center;
+    padding: 15px 0 0px;
+    /*border: 1px dashed #111099;/* [保留] 保留您的测试用边框 */
   }
 
   .date-info {

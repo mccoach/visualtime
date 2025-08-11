@@ -11,39 +11,96 @@
 // 这是一个最佳实践，可以防止在代码的不同地方使用不一致的或错误的键名。
 const STORAGE_KEYS = {
   // 四个主要倒计时卡片的单位设置 ('day', 'hour', 'minute', 'second')
-  PRECISION_YEAR: 'precision_year',
-  PRECISION_QUARTER: 'precision_quarter',
-  PRECISION_MONTH: 'precision_month',
-  PRECISION_WEEK: 'precision_week',
+  PRECISION_YEAR: "precision_year",
+  PRECISION_QUARTER: "precision_quarter",
+  PRECISION_MONTH: "precision_month",
+  PRECISION_WEEK: "precision_week",
   // “今日剩余”组件的精度设置 ('s' 或 'ms')
-  PRECISION_TODAY: 'precision_today',
+  PRECISION_TODAY: "precision_today",
 
   // 四个主要倒计时卡片的小数点精度设置 (0, 1, 2)
-  DECIMAL_PRECISION_YEAR: 'decimal_precision_year',
-  DECIMAL_PRECISION_QUARTER: 'decimal_precision_quarter',
-  DECIMAL_PRECISION_MONTH: 'decimal_precision_month',
-  DECIMAL_PRECISION_WEEK: 'decimal_precision_week',
+  DECIMAL_PRECISION_YEAR: "decimal_precision_year",
+  DECIMAL_PRECISION_QUARTER: "decimal_precision_quarter",
+  DECIMAL_PRECISION_MONTH: "decimal_precision_month",
+  DECIMAL_PRECISION_WEEK: "decimal_precision_week",
 
   // 周卡片的周首日设置 (1 代表周一, 0 代表周日)
-  WEEK_START: 'week_start',
+  WEEK_START: "week_start",
 
   // 自定义倒计时事件列表 (存储为一个 JSON 字符串)
-  CUSTOM_EVENTS: 'custom_events'
+  CUSTOM_EVENTS: "custom_events",
 };
 
 // --- 通用单位设置函数 ---
 
+// 定义所有被允许的标准单位（必须全部是复数形式，与Luxon/formatters标准对齐）
+const VALID_PRECISIONS = [
+  "years",
+  "quarters",
+  "months",
+  "weeks",
+  "days",
+  "hours",
+  "minutes",
+  "seconds",
+  "milliseconds",
+];
+
 /**
- * 获取指定类型卡片的单位设置。
- * @param {string} type - 卡片类型 (如 'year', 'quarter', 'today')。
- * @returns {string} - 保存的单位值。如果未找到，则返回默认值。
+ * 获取某类型倒计时卡片的单位设置（比如 'days'、'hours'）
+ * 自动校正脏数据：
+ * - 若localStorage中是空、未定义、单数/旧名、不规范乱值，会主动升级修正后写回持久化
+ * - 永远返回合法的、标准的复数单位
+ * @param {string} type - 比如 'year'、'quarter'、'week'、'month'、'today'
+ * @returns {string} 标准单位名称（如 'days'）
  */
 export const getPrecision = (type) => {
-  // 根据传入的类型动态构建在 STORAGE_KEYS 中对应的键名，例如 type='year' -> 'PRECISION_YEAR'。
+  // 按规范动态拼接key，例如 'year' → 'PRECISION_YEAR'
   const key = `precision_${type}`.toUpperCase();
-  // 从 localStorage 读取数据。如果 getItem 返回 null (即从未设置过)，
-  // 则 `||` 操作符会返回一个默认值 'day' (这个默认值在 TodayCountdown 组件中会被覆盖)。
-  return localStorage.getItem(STORAGE_KEYS[key]) || 'day';
+
+  // 专为 "today" 兼容
+  if (type === "today") {
+    let value = localStorage.getItem(STORAGE_KEYS[key]);
+    if (value === "seconds" || value === "milliseconds") {
+      return value;
+    }
+    // 默认“今日剩余”是“毫秒”
+    localStorage.setItem(STORAGE_KEYS[key], "milliseconds");
+    return "milliseconds";
+  }
+
+  // 从localStorage拿到对应单位设置。若由先前代码写入错误，会直接读到脏数据（如''、undefined、'hour'…）
+  let value = localStorage.getItem(STORAGE_KEYS[key]);
+
+  // 兼容老数据，把可能的单数英文主动映射升级为复数
+  const legacyMap = {
+    year: "years",
+    quarter: "quarters",
+    month: "months",
+    week: "weeks",
+    day: "days",
+    hour: "hours",
+    minute: "minutes",
+    second: "seconds",
+    millisecond: "milliseconds",
+  };
+
+  // 检查当前读到的单位是否合法
+  if (!value || !VALID_PRECISIONS.includes(value)) {
+    // 如果是可映射的单数老值（如 'day'），则修正升级
+    if (legacyMap[value]) {
+      value = legacyMap[value];
+      localStorage.setItem(STORAGE_KEYS[key], value); // 自动修正写回
+      // console.warn(`[storage] precision "${value}" auto-upgraded from legacyKey`);
+    } else {
+      // 其它无效/空设置，回退到'days'（最安全），并写回覆盖旧的脏数据
+      value = "days";
+      localStorage.setItem(STORAGE_KEYS[key], value);
+      // console.warn(`[storage] precision auto-reset to default for ${key}`);
+    }
+  }
+  // 保证无论内存还是下一次启动都走正确标准
+  return value;
 };
 
 /**
@@ -61,18 +118,28 @@ export const setPrecision = (type, precision) => {
 // --- 通用小数点精度设置函数 ---
 
 /**
- * 获取指定类型卡片的小数点精度设置。
- * @param {string} type - 卡片类型 (如 'year', 'quarter')。
- * @returns {number} - 保存的精度值 (0, 1, 2)。如果未找到，则返回默认值 0。
+ * 获取某类型卡片的小数点精度设置（始终返回0、1、2其中之一）
+ * 自动修正所有非数字、不合法值，为0
+ * @param {string} type - 比如 'year'、'quarter'、'today'
+ * @returns {number} 0、1或2，默认0
  */
 export const getDecimalPrecision = (type) => {
-  // 动态构建键名。
+  // 动态获得key名，如 'year' → 'DECIMAL_PRECISION_YEAR'
   const key = `decimal_precision_${type}`.toUpperCase();
-  // 从 localStorage 获取保存的字符串值 (例如 '0', '1', '2')。
-  const value = localStorage.getItem(STORAGE_KEYS[key]);
-  // 因为 localStorage 存的是字符串，所以需要转换回数字。
-  // 如果 `value` 存在 (不为 null 或 undefined)，则用 parseInt 转换；否则，返回默认值 0。
-  return value ? parseInt(value) : 0;
+
+  // 直接从localStorage拿字符串
+  let value = localStorage.getItem(STORAGE_KEYS[key]);
+
+  // 转数字，null/undefined/无效会变NaN
+  let numValue = value != null ? parseInt(value) : 0;
+
+  // 检查是否合法（必须在0-2）
+  if (isNaN(numValue) || numValue < 0 || numValue > 2) {
+    numValue = 0; // 修正到安全默认
+    localStorage.setItem(STORAGE_KEYS[key], "0"); // 自动覆盖坏值
+    // console.warn(`[storage] decimal_precision auto-reset to 0 for ${key}`);
+  }
+  return numValue;
 };
 
 /**
@@ -90,13 +157,24 @@ export const setDecimalPrecision = (type, precision) => {
 // --- 周首日设置函数 ---
 
 /**
- * 获取周首日的设置。
- * @returns {number} - 1 代表周一，0 代表周日。如果未找到，则默认返回 1 (周一)。
+ * 获取“周首日”设置，只允许0（周日）或1（周一）
+ * 遇到其他乱值自动升级修正回1
+ * @returns {number} 0或1，默认是1
  */
 export const getWeekStart = () => {
-  // 从 localStorage 获取值，并使用 parseInt 将其转换为数字。
-  // 如果 `getItem` 返回 null，`parseInt(null)` 是 NaN，此时 `|| '1'` 会提供默认值 '1'，再进行转换。
-  return parseInt(localStorage.getItem(STORAGE_KEYS.WEEK_START) || '1');
+  // 把本地设置读出来（字符串、可能是undefined或脏值）
+  let value = localStorage.getItem(STORAGE_KEYS.WEEK_START);
+
+  // 强制转数字，undefined/null会变为1
+  let numValue = value != null ? parseInt(value) : 1;
+
+  // 若不合法（不是0不是1，是NaN或任何乱值），自动修正回1
+  if (isNaN(numValue) || (numValue !== 0 && numValue !== 1)) {
+    numValue = 1; // 最安全默认
+    localStorage.setItem(STORAGE_KEYS.WEEK_START, "1"); // 自动覆盖坏值
+    // console.warn(`[storage] week_start auto-reset to 1`);
+  }
+  return numValue;
 };
 
 /**
@@ -141,7 +219,11 @@ export const addCustomEvent = (event) => {
   // 1. 获取当前已有的所有事件。
   const events = getCustomEvents();
   // 2. 创建一个完整的新事件对象，为其分配一个唯一的ID（使用当前时间戳）和创建时间。
-  const newEvent = { id: Date.now(), ...event, createdAt: new Date().toISOString() };
+  const newEvent = {
+    id: Date.now(),
+    ...event,
+    createdAt: new Date().toISOString(),
+  };
   // 3. 将新事件添加到数组的末尾。
   events.push(newEvent);
   // 4. 将修改后的整个数组保存回 localStorage。
@@ -159,7 +241,7 @@ export const removeCustomEvent = (id) => {
   const events = getCustomEvents();
   // 2. 使用 `Array.prototype.filter` 创建一个新数组，
   //    这个新数组包含所有 `id` 不等于传入 `id` 的事件。
-  const filtered = events.filter(event => event.id !== id);
+  const filtered = events.filter((event) => event.id !== id);
   // 3. 将这个被过滤后的新数组保存回 localStorage，从而完成删除操作。
   saveCustomEvents(filtered);
 };

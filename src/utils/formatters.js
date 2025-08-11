@@ -30,9 +30,20 @@ export function formatDurationCombo(duration, isPast = false) {
 
   const prefix = isPast ? "已过 " : "还有 ";
 
-  const parts = duration
-    .shiftTo("years", "months", "days", "hours", "minutes", "seconds")
-    .toObject();
+  // ========================================================================
+  // [核心修改] 适应新的Duration对象结构
+  // ------------------------------------------------------------------------
+  // [旧代码]
+  // const parts = duration
+  //  .shiftTo("years", "months", "days", "hours", "minutes", "seconds")
+  //  .toObject();
+  // [说明] 旧代码中，duration是一个总毫秒数，需要用.shiftTo()来将其智能分解为年月日等单位。
+
+  // [新代码]
+  // 由于countdownEngine现在直接返回一个已经按日历单位分解好的Duration对象，
+  // 我们不再需要.shiftTo()进行转换，可以直接将其转换为普通对象。
+  const parts = duration.toObject();
+  // ========================================================================
 
   const timeUnits = [
     { num: parts.years, unit: "年" },
@@ -43,6 +54,7 @@ export function formatDurationCombo(duration, isPast = false) {
     { num: Math.floor(parts.seconds || 0), unit: "秒" },
   ];
 
+  // [说明] 后续的显示逻辑完全保持不变，因为`parts`对象的结构是一致的。
   let outArr = [];
   let firstNonZeroFound = false;
 

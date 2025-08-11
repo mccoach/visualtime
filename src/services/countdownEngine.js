@@ -30,10 +30,11 @@ export function computeCountdown({ type, baseTime, config = {} }) {
     const base = DateTime.fromMillis(baseTime);
     let start, end, target;
     let isPast = false;
+    // [新增说明] duration变量现在将在if/else块内部被赋值
+    let duration;
 
     if (type === "custom") {
-      // [核心修改] 直接使用传入的原始配置对象创建Luxon日期。
-      // Luxon能够健壮地处理大年份（如-99999），避免了JS原生Date对象的限制。
+      // [说明] 'custom' 类型的逻辑保持不变，用于确定目标时间点
       target = DateTime.fromObject({
         year: config.target.year,
         month: config.target.month,
@@ -52,22 +53,40 @@ export function computeCountdown({ type, baseTime, config = {} }) {
       } else {
         [start, end] = [base, target];
       }
+
+      // ========================================================================
+      // [核心修改] 改变'custom'类型的倒计时计算方式
+      // 从“精确毫秒差”改为“日历单位差”。
+      // ------------------------------------------------------------------------
+      // [旧代码] const duration = end.diff(start);
+      // [说明] 旧代码计算的是两个时间点之间总的、精确的毫秒数。
+
+      // [新代码] 使用Luxon的日历单位差值计算。
+      // 这个方法会分别计算年、月、日等各个单位的差值，而不是一个总时长。
+      // 这将直接产生类似于“相差7000年、0个月、1天、2小时...”这样的结果结构。
+      duration = end.diff(start, [
+        "years",
+        "months",
+        "days",
+        "hours",
+        "minutes",
+        "seconds",
+      ]);
+      // ========================================================================
     } else {
-      // 处理标准倒计时类型 (逻辑不变)
+      // [说明] 所有非'custom'的标准倒计时类型，保持原有的精确毫秒计算逻辑不变。
       start = base;
       end = getEndOf(type, base, { weekStart: config.weekStart });
+      // [说明] duration在这里赋值，计算精确的毫秒差
+      duration = end.diff(start);
     }
 
     if (!start.isValid || !end.isValid)
       throw new Error("Invalid start or end date for calculation");
 
-    // 计算差值，得到一个Luxon Duration对象，这是最原始的数据
-    const duration = end.diff(start);
-
-    // 计算进度 (逻辑不变)
+    // [说明] 进度计算逻辑保持不变。对于'custom'类型，进度仍然是0，因为它没有一个明确的“总时长”概念。
     let progress = 0;
     if (type !== "custom") {
-      // 标准倒计时的进度计算
       const periodStart = getStartOf(type, base, {
         weekStart: config.weekStart,
       });
@@ -88,6 +107,6 @@ export function computeCountdown({ type, baseTime, config = {} }) {
       `[CountdownEngine] Error computing countdown for type '${type}':`,
       error
     );
-    return null; // 在计算失败时返回null，让上层处理
+    return null;
   }
 }
