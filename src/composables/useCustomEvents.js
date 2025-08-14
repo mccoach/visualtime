@@ -853,8 +853,8 @@ export function useCustomEvents() {
       const key = `confirm:copy:${id}`;
       if (isActive(key)) {
         // 已在确认态 → 第二次触发执行复制
-        copyEvent(ev);
         closeActive("confirm");
+        copyEvent(ev);
       } else {
         openCopyConfirm(id);
       }
