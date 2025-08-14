@@ -251,10 +251,10 @@
             logic.activeMenu.value === event.id
               ? 2000 // 菜单打开：最高
               : activeSwipeId === event.id
-                ? 1000 // 左滑展开：次高
-                : logic.hoveredEventId.value === event.id
-                  ? 100 // 仅悬浮：最低提升
-                  : undefined, // 其他：不提升
+              ? 1000 // 左滑展开：次高
+              : logic.hoveredEventId.value === event.id
+              ? 100 // 仅悬浮：最低提升
+              : undefined, // 其他：不提升
         }"
         @mouseenter="logic.handleEventMouseEnter(event.id)"
         @mouseleave="logic.handleEventMouseLeave"
@@ -513,6 +513,20 @@
         }"
       >
         再按一次 Delete 或 - 确认删除
+      </div>
+    </Transition>
+
+    <!-- 新增：拖拽禁用提示（排序模式下长按把手触发；始终位于指针左侧） -->
+    <Transition name="hint-fade">
+      <div
+        v-if="logic.dragDisabledHint.visible"
+        class="drag-disabled-hint"
+        :style="{
+          left: logic.dragDisabledHint.x + 'px',
+          top: logic.dragDisabledHint.y + 'px',
+        }"
+      >
+        {{ logic.dragDisabledHint.text }}
       </div>
     </Transition>
   </teleport>
@@ -1316,9 +1330,8 @@ function toggleRowMenu(eventId) {
  */
 .clip-wrap.is-hovered {
   /* 提升层级由父容器 z-index 控制，这里只负责视觉表现 */
-  box-shadow: 
-    0 14px 34px rgba(0, 0, 0, 0.28), /* 主阴影：略深、半径略大 */ 
-    0 4px 14px rgba(0, 0, 0, 0.22); /* 次阴影：贴近主体，层次更清晰 */
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28),
+    /* 主阴影：略深、半径略大 */ 0 4px 14px rgba(0, 0, 0, 0.22); /* 次阴影：贴近主体，层次更清晰 */
   outline-color: color-mix(
     in srgb,
     var(--green-primary) 32%,
@@ -1548,7 +1561,7 @@ function toggleRowMenu(eventId) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 .operation-hint {
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
   color: var(--text-primary);
   opacity: 0.95;
 }
@@ -1640,6 +1653,26 @@ function toggleRowMenu(eventId) {
 }
 .clip-wrap.pending-delete {
   animation: vt-softPulse-red 1.2s ease-in-out 3;
+}
+
+.drag-disabled-hint {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 240px; /* 固定宽度，避免随指针移动造成视觉抖动 */
+  max-width: 240px; /* 防止被其它规则放宽 */
+  white-space: pre-line; /* 允许自动换行，避免 nowrap 下内容溢出 */
+  /* 定位到指针，整体向左放置避免遮挡指针与按压点 */
+  transform: translate(-100%, -50%) translateX(-12px);
+  background: var(--bg-primary); /* background: rgba(17, 17, 17, 0.92); */
+  color: var(--text-secondary); /* color: #fff; */
+  padding: 8px 12px;
+  border-radius: 8px;
+  /* border: 1px solid var(--border-color); */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 10003;
+  pointer-events: none;
+  font-size: 14px;
 }
 
 /* 拖拽视觉 */
