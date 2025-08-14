@@ -1,7 +1,16 @@
-<!-- E:\AppProject\VisualTime\src\components\TodayCountdown.vue (全量最终修复版) -->
+<!-- E:\AppProject\VisualTime\src\components\TodayCountdown.vue -->
+<!--
+  说明（逐行注释版）：
+  - 本组件显示“今日剩余”倒计时，包含顶部设置菜单与动态波浪背景。
+  - 第六阶段重构：彻底移除 eventBus 与灰度开关；所有互斥交互统一由 actionArbiter 管理。
+  - 菜单：通过仲裁器实现 ESC / 外点击关闭，与全局其他会话（如其他菜单/左滑/拖拽）互斥。
+  - 字号适配：使用 fontSizeManager 的响应式适配器，按内容变化（tick）与结构变化（布局）分两种调度。
+-->
+
 <template>
+  <!-- 根容器：卡片样式 + 波浪承载区 -->
   <div class="today-countdown card today-liquid-wrap" ref="cardRef">
-    <!-- SVG波浪动画 -->
+    <!-- 背景SVG波浪：根据进度(progress)决定液位高度，路径由 useNaturalWave 生成 -->
     <svg
       class="liquid-svg-h"
       :width="cardWidth"
@@ -19,6 +28,7 @@
         border-radius: inherit;
       "
     >
+      <!-- 根据 progress 改变不透明度，progress 越高，视觉浮动越明显 -->
       <path
         :d="liquidPath"
         fill="var(--green-primary)"
@@ -26,25 +36,30 @@
       />
     </svg>
 
-    <!-- 菜单和标题 -->
+    <!-- 设置菜单容器：点击按钮打开菜单；使用仲裁器进行互斥与外点击/ESC关闭 -->
     <div class="settings-menu-container" ref="menuContainerRef" @click.stop>
+      <!-- 触发按钮：active 类用于高亮已打开状态 -->
       <button
         class="menu-trigger-btn"
         @click="toggleMenu"
         :class="{ active: isMenuOpen }"
         title="设置"
       >
+        <!-- 简洁的竖三点（以文本方式呈现） -->
         ⋮
       </button>
+
+      <!-- 菜单面板：选择精度为“秒”或“毫秒” -->
       <div v-if="isMenuOpen" class="settings-dropdown-panel">
         <div class="dropdown-column">
-          <!-- 【核心修复】class绑定时必须使用 .value 访问 ref 的值 -->
+          <!-- 选择“秒”精度 -->
           <button
             :class="['menu-option-btn', { active: precision === 'seconds' }]"
             @click="handlePrecisionChange('seconds')"
           >
             秒
           </button>
+          <!-- 选择“毫秒”精度 -->
           <button
             :class="[
               'menu-option-btn',
@@ -57,18 +72,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 卡片标题 -->
     <div class="card-header">
       <h3 class="title">今日剩余</h3>
     </div>
 
-    <!-- 时间显示 -->
+    <!-- 时间显示区：由 useCountdown 输出的 HH:mm:ss[.ms] 组成；字号自适配 -->
     <div class="time-display" ref="timeDisplayRef">
       <span class="num-block">{{ timeObject.hours }}</span>
       <span class="sep-block">:</span>
       <span class="num-block">{{ timeObject.minutes }}</span>
       <span class="sep-block">:</span>
       <span class="num-block">{{ timeObject.seconds }}</span>
-      <!-- 【核心修复】v-if 条件判断同样需要使用 .value -->
+      <!-- 当精度为毫秒时，附加小数点与毫秒段 -->
       <template v-if="precision === 'milliseconds'">
         <span class="dot-block">.</span>
         <span class="ms-block">{{ timeObject.milliseconds }}</span>
@@ -78,246 +95,261 @@
 </template>
 
 <script setup>
-// ========================== TodayCountdown.vue 脚本（仅脚本，逐行注释；修复跨帧抖动，统一调度） ==========================
+// ========================== 核心API与工具导入 ==========================
 
-// -------------------- Vue 核心 API --------------------
-import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue"; // 引入组合式API
+// 引入 Vue 组合式API工具
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from "vue";
 
-// -------------------- 业务逻辑/工具模块 --------------------
-import { useCountdown } from "../composables/useCountdown.js"; // 倒计时业务逻辑（按天）
-import { useNaturalWave } from "../composables/useNaturalWave.js"; // 波浪动画
-import {
-  broadcastMenuOpened,
-  listenForOtherMenuOpened,
-} from "../utils/eventBus.js"; // 菜单互斥
+// 倒计时逻辑：基于 clockService 提供的时间信号，输出进度与格式化字段
+import { useCountdown } from "../composables/useCountdown.js";
+
+// 自然波浪生成器：根据容器宽高与进度生成可用的SVG路径
+import { useNaturalWave } from "../composables/useNaturalWave.js";
+
+// 字号适配工具：按容器宽度等比缩放子元素；提供两类调度器
 import {
   createResponsiveFontAdapter,
   makeFontSchedulers,
-} from "../utils/fontSizeManager.js"; // 字号引擎 + 调度器工厂
-import * as storage from "../utils/storage.js"; // 本地存储（用户精度选择）
+} from "../utils/fontSizeManager.js";
 
-// -------------------- 菜单状态与交互 --------------------
-const isMenuOpen = ref(false); // 菜单展开状态
-const menuContainerRef = ref(null); // 菜单容器引用
-let cleanupMenuListener = null; // 菜单互斥监听的清理函数
+// 本地存储：读取/保存“今日剩余”的精度设置（秒/毫秒）
+import * as storage from "../utils/storage.js";
 
-// 切换菜单展开/收起
+// 统一互斥仲裁器：唯一会话管理；支持 esc/outside 关闭路由
+import { activate, closeActive, isActive } from "../services/actionArbiter.js";
+
+// ========================== 菜单状态与仲裁 ==========================
+
+// 菜单展开状态（true：显示设置面板）
+const isMenuOpen = ref(false);
+
+// 菜单容器引用：提供给 arbiter 的 getRootEl，用于“外点击”判定
+const menuContainerRef = ref(null);
+
+/**
+ * 切换菜单（通过仲裁器统一管理）
+ * - 若当前会话已是本菜单 → 触发 toggle 关闭
+ * - 否则 → 激活新会话，开启 ESC/外点击关闭，作用域为菜单容器（触发器 + 面板）
+ */
 function toggleMenu() {
-  const willOpen = !isMenuOpen.value; // 目标状态
-  if (willOpen) broadcastMenuOpened("today-countdown"); // 广播打开，其他组件收到后自动关闭自己的菜单
-  isMenuOpen.value = willOpen; // 应用状态
-}
+  const key = "menu:today";
 
-// 关闭菜单
-function closeMenu() {
-  isMenuOpen.value = false;
-}
-
-// 全局点击：点击菜单外时关闭
-function handleGlobalClick(e) {
-  if (
-    isMenuOpen.value &&
-    menuContainerRef.value &&
-    !menuContainerRef.value.contains(e.target)
-  ) {
-    closeMenu();
+  // 已激活 → 点击触发“toggle”关闭（仲裁器会执行 onPreempt/onRelease）
+  if (isActive(key)) {
+    closeActive("toggle");
+    return;
   }
+
+  // 激活新会话：开启 ESC 与 outside 关闭；作用域为菜单容器
+  activate({
+    key,
+    closers: { esc: true, outside: true },
+    onPreempt: () => {
+      // 被取代/主动关闭：幂等收起
+      isMenuOpen.value = false;
+    },
+    onRelease: () => {
+      // 释放后：再次确保关闭（幂等）
+      isMenuOpen.value = false;
+    },
+    getRootEl: () => menuContainerRef.value,
+  });
+
+  // 打开菜单
+  isMenuOpen.value = true;
 }
 
-// 全局键盘：ESC 关闭
-function handleGlobalKeydown(e) {
-  if (e.key === "Escape" || e.key === "Esc") closeMenu();
-}
+// ========================== 精度设置与倒计时 ==========================
 
-// -------------------- 精度设置（秒/毫秒） --------------------
-const precision = ref(storage.getPrecision("today")); // 从本地存储加载“今日剩余”的精度（默认毫秒）
+// 读取“今日剩余”的精度设置：'seconds' | 'milliseconds'
+const precision = ref(storage.getPrecision("today")); // storage 内已兼容 today
 
-// 根据精度决定 useCountdown 的计算频率（毫秒 → 高频；秒 → 低频）
+// 根据精度决定倒计时频率：毫秒 → 高频（rAF）；秒 → 低频（1Hz）
 const countdownConfig = computed(() => ({
-  frequency: precision.value === "milliseconds" ? "high" : "low", // 仅当毫秒时请求 rAF 高频
+  frequency: precision.value === "milliseconds" ? "high" : "low",
 }));
 
-// 获取实时进度与分解时间对象（时/分/秒/毫秒）
+// 使用 day 类型倒计时：表示“本日剩余”
 const { progress, timeObject } = useCountdown("day", countdownConfig);
 
-// 菜单项：用户切换精度（秒/毫秒）
+/**
+ * 精度切换处理：
+ * - 更新本地存储
+ * - 标记字号适配器需要重建（元素数量可能变化：是否显示毫秒段）
+ * - 在 nextTick 后安排“立即”适配（避免闪动）
+ */
 function handlePrecisionChange(val) {
-  precision.value = val; // 更新本地精度状态
-  storage.setPrecision("today", val); // 持久化存储
-  fontAdapterNeedsRecreate.value = true; // 结构变化（毫秒位显隐）→ 必须重建字号适配器
-  scheduleFontAdapterImmediate(); // 内容变更：同帧适配，避免跨帧抖动
-  closeMenu(); // 关闭菜单
+  precision.value = val;
+  storage.setPrecision("today", val);
+  fontAdapterNeedsRecreate.value = true;
+  scheduleFontAdapterImmediate();
+  // 注意：菜单状态不改变，由仲裁器管理关闭
 }
 
-// -------------------- 波浪动画（保持现有逻辑） --------------------
-const cardRef = ref(null); // 卡片根容器
-const cardWidth = ref(520); // 卡片宽（初值）
-const cardHeight = ref(120); // 卡片高（初值）
+// ========================== 背景波浪（尺寸响应） ==========================
 
-// 监听卡片容器尺寸变化，实时更新 viewBox 尺寸
+// 根容器引用：用于监听卡片尺寸变化，驱动 useNaturalWave 的宽高
+const cardRef = ref(null);
+
+// 波浪容器实时尺寸（由 ResizeObserver 推送）
+const cardWidth = ref(520);
+const cardHeight = ref(120);
+
+// 安装 ResizeObserver：监听卡片尺寸变化并更新宽高
 onMounted(() => {
   if (cardRef.value) {
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries[0]) {
-        cardWidth.value = entries[0].contentRect.width; // 写入当前宽度
-        cardHeight.value = entries[0].contentRect.height; // 写入当前高度
+        cardWidth.value = entries[0].contentRect.width;
+        cardHeight.value = entries[0].contentRect.height;
       }
     });
-    resizeObserver.observe(cardRef.value); // 开始观察
-    onUnmounted(() => resizeObserver.disconnect()); // 卸载时断开
+    resizeObserver.observe(cardRef.value);
+    // 组件卸载时断开观察器（在 onMounted 内注册 onUnmounted，保证同生命周期）
+    onUnmounted(() => resizeObserver.disconnect());
   }
 });
 
-// 构建波浪路径（基于当前宽高与进度）
+// 自然波浪：输入宽/高与 progress，输出 SVG path
 const { liquidPath } = useNaturalWave({
   width: cardWidth,
   height: cardHeight,
-  progress: progress, // 使用 useCountdown 返回的进度
+  progress: progress,
 });
 
-// -------------------- 字号自适应核心（刷新优先 + 必要时重建） --------------------
-const timeDisplayRef = ref(null); // 数字显示容器（包含若干 span）
-let fontAdapter = null; // 字号适配器实例
+// ========================== 字号自适应（时间显示） ==========================
 
-const fontAdapterNeedsRecreate = ref(true); // 是否需要重建适配器（结构或内容宽度变化时置 true）
-let fontAdapterContainerEl = null; // 最近一次适配的容器引用（用于判定目标是否变化）
-let fontAdapterElementsCount = 0; // 最近一次参与缩放的元素个数（毫秒显隐会改变数量）
+// 时间显示容器引用（包含若干 span：HH : mm : ss [. ms]）
+const timeDisplayRef = ref(null);
 
-const isMobileView = ref(false); // 移动端断点标记（决定 minSize）
+// 自适配器实例与关联状态
+let fontAdapter = null; // 当前适配器实例
+const fontAdapterNeedsRecreate = ref(true); // 标识是否需要重建（容器/元素集合变化时）
+let fontAdapterContainerEl = null; // 最近一次绑定的容器
+let fontAdapterElementsCount = 0; // 最近一次绑定的元素数量（毫秒开关影响）
 
-// 实际执行适配的函数（函数声明，避免 TDZ）
+// 移动端视图标识：影响 minSize（更小字号）
+const isMobileView = ref(false);
+
+/**
+ * 初始化/刷新字号自适应：
+ * - 当容器或元素集合变化（如切换毫秒开关）时，销毁后重建适配器；
+ * - 否则仅 refresh，避免不必要的重建。
+ */
 function setupFontAdapter() {
-  if (!timeDisplayRef.value) return; // 缺容器 → 跳过
-  const containerEl = timeDisplayRef.value; // 当前容器
-  const elements = containerEl.querySelectorAll("span"); // 所有文本片段（含毫秒）
-  if (!elements || elements.length === 0) return; // 无元素 → 跳过
+  if (!timeDisplayRef.value) return;
 
-  // 判定是否需要“重建”
-  const elementsCountChanged = elements.length !== fontAdapterElementsCount; // 片段数量是否改变（毫秒位显隐会变）
-  const containerChanged = containerEl !== fontAdapterContainerEl; // 容器引用是否变化（DOM重建）
+  // 目标容器与参与缩放的元素（span 列表）
+  const containerEl = timeDisplayRef.value;
+  const elements = containerEl.querySelectorAll("span");
+  if (!elements || elements.length === 0) return;
 
+  // 是否需要重建：显式标记 / 容器变动 / 元素数量变化
+  const elementsCountChanged = elements.length !== fontAdapterElementsCount;
+  const containerChanged = containerEl !== fontAdapterContainerEl;
   const needRecreate =
-    fontAdapterNeedsRecreate.value || // 业务侧主动要求重建（如精度切换）
-    !fontAdapter || // 尚未创建
-    elementsCountChanged || // 片段数量变化
-    containerChanged; // 容器目标变化
+    fontAdapterNeedsRecreate.value ||
+    !fontAdapter ||
+    elementsCountChanged ||
+    containerChanged;
 
   if (needRecreate) {
+    // 销毁旧实例（若有）
     if (fontAdapter) {
-      fontAdapter.destroy(); // 销毁旧实例，清除缓存
+      fontAdapter.destroy();
       fontAdapter = null;
     }
-    // 创建新实例（minSize 随断点切换）
+    // 创建新实例：minSize 按视口大小区分，以保证可读性
     fontAdapter = createResponsiveFontAdapter({
       container: containerEl,
       elements,
       minSize: isMobileView.value ? 10 : 12,
       debounceDelay: 50,
     });
-    // 记录当前绑定目标与数量，便于下轮判断
+    // 记录绑定信息，清除重建标记
     fontAdapterContainerEl = containerEl;
     fontAdapterElementsCount = elements.length;
-    fontAdapterNeedsRecreate.value = false; // 已重建 → 清标记
-    return; // 已完成重建，无需 refresh
+    fontAdapterNeedsRecreate.value = false;
+    return;
   }
 
-  // 仅容器宽度变化或普通跳变 → 轻量 refresh（重读容器有效宽度，复用内容基线）
+  // 否则仅刷新（快速调整）
   fontAdapter.refresh();
 }
 
-// 基于字号适配函数创建“调度器”：同帧/合帧两种
+// 创建两个调度器：
+// - scheduleImmediate：用于内容变化（tick）后，在同帧 nextTick 内完成，避免闪动
+// - scheduleFrame：用于结构/布局变化，合并到 rAF
 const {
-  scheduleImmediate: scheduleFontAdapterImmediate, // 内容变化使用（nextTick 内执行，避免跨帧抖动）
-  scheduleFrame: scheduleFontAdapterFrame, // 结构变化使用（rAF 合并，减少重复）
+  scheduleImmediate: scheduleFontAdapterImmediate,
+  scheduleFrame: scheduleFontAdapterFrame,
 } = makeFontSchedulers(setupFontAdapter);
 
-// 更新断点（<=800 认为移动端）：跨越断点则重建字号适配器
-function updateMobileFlag() {
-  const nowIsMobile = window.innerWidth <= 800; // 当前是否移动端
-  if (nowIsMobile !== isMobileView.value) {
-    // 断点是否发生变化
-    isMobileView.value = nowIsMobile; // 更新断点标记
-    fontAdapterNeedsRecreate.value = true; // minSize 变化 → 必须重建
-    scheduleFontAdapterFrame(); // 结构变化 → 用 rAF 合并
+/**
+ * 计算当前展示文本（仅用于侦听内容变化，触发“立即”适配）
+ * - 当时分秒/毫秒跳动时，确保字号适配及时刷新，避免折行或截断
+ */
+const displayedText = computed(() => {
+  let s = `${timeObject.value.hours}:${timeObject.value.minutes}:${timeObject.value.seconds}`;
+  if (precision.value === "milliseconds") {
+    s += `.${timeObject.value.milliseconds}`;
   }
-}
+  return s;
+});
 
-// -------------------- 跳变刷新开关（可选） --------------------
-// 默认开启“纯跳变也刷新”（'1'）；可在控制台通过 localStorage 进行开关：
-//  localStorage.setItem('today_refresh_on_tick', '0') // 关闭
-//  localStorage.setItem('today_refresh_on_tick', '1') // 开启
-const TICK_REFRESH_LS_KEY = "today_refresh_on_tick"; // 存储键
-const refreshOnTick = ref(true); // 是否在位数不变时也刷新
+// 本地开关：是否在 tick 上刷新字号（默认 true）
+const TICK_REFRESH_LS_KEY = "today_refresh_on_tick";
+const refreshOnTick = ref(true);
 try {
   const saved =
     typeof localStorage !== "undefined"
       ? localStorage.getItem(TICK_REFRESH_LS_KEY)
-      : null; // 读取保存值
-  if (saved !== null) refreshOnTick.value = saved !== "0"; // 应用保存的偏好
+      : null;
+  if (saved !== null) refreshOnTick.value = saved !== "0";
 } catch {
-  // 读取异常时忽略，保持默认开启
+  // 安全忽略存取异常
 }
 
-// 组合当前显示文本（作为“内容变化”的侦听源）
-const displayedText = computed(() => {
-  // 基础部分：HH:mm:ss
-  let s = `${timeObject.value.hours}:${timeObject.value.minutes}:${timeObject.value.seconds}`;
-  // 若选择毫秒精度，追加 .mmm
-  if (precision.value === "milliseconds") {
-    s += `.${timeObject.value.milliseconds}`;
-  }
-  return s; // 返回拼接后的文本
-});
-
-// 文本跳变 → 轻量刷新（同帧完成）；可通过 refreshOnTick 关闭“位数不变时的刷新”
+// 监听展示文本变化：若开启 refreshOnTick，则在 nextTick 安排“立即”刷新
 watch(displayedText, () => {
-  if (!refreshOnTick.value) return; // 用户关闭纯跳变刷新 → 跳过
-  nextTick(scheduleFontAdapterImmediate); // 内容变化 → nextTick 内立即适配，避免跨帧闪动
+  if (!refreshOnTick.value) return;
+  nextTick(scheduleFontAdapterImmediate);
 });
 
-// 精度变化（秒 ↔ 毫秒） → 结构变化（毫秒片段显隐）
-// 这里为双保险：handlePrecisionChange 已经置位与立即调度；watch 再保证一层
+// 监听精度变化：需要重建（元素数量变化），在 nextTick 后执行“立即”适配
 watch(precision, () => {
-  fontAdapterNeedsRecreate.value = true; // 标记重建
-  nextTick(scheduleFontAdapterImmediate); // 同帧适配
+  fontAdapterNeedsRecreate.value = true;
+  nextTick(scheduleFontAdapterImmediate);
 });
 
-// 窗口尺寸变化：更新断点，必要时重建；否则不处理（尽量少做工作）
-function handleWindowResize() {
-  updateMobileFlag(); // 判定断点是否跨越（跨越时会 schedule rAF 重建）
+// 视图断点：简单以 800px 判定移动端，影响 minSize（小屏更小字号）
+function updateMobileFlag() {
+  const nowIsMobile = window.innerWidth <= 800;
+  if (nowIsMobile !== isMobileView.value) {
+    isMobileView.value = nowIsMobile;
+    fontAdapterNeedsRecreate.value = true;
+    scheduleFontAdapterFrame(); // 结构变化：合并到 rAF
+  }
 }
 
-// 初次断点判定（放在调度器定义之后，避免顺序问题）
-updateMobileFlag(); // 初始化 isMobileView 与重建标记（若需要）
+// 初始化断点标记
+updateMobileFlag();
 
-// -------------------- 生命周期：挂载与卸载 --------------------
+// ========================== 生命周期钩子 ==========================
+
 onMounted(() => {
-  // 注册全局事件
-  document.addEventListener("click", handleGlobalClick, true); // 点击外部关闭菜单
-  document.addEventListener("keydown", handleGlobalKeydown); // ESC 关闭
-  cleanupMenuListener = listenForOtherMenuOpened("today-countdown", closeMenu); // 菜单互斥监听
-  window.addEventListener("resize", handleWindowResize); // 断点监听
-
-  // 首次布局后：同帧适配（初始 fontAdapterNeedsRecreate 为 true，将执行重建）
+  // 首次渲染完成后，安排一次“立即”适配，随后再按需要刷新
   nextTick(scheduleFontAdapterImmediate);
 });
 
 onUnmounted(() => {
-  // 清理全局事件
-  document.removeEventListener("click", handleGlobalClick, true);
-  document.removeEventListener("keydown", handleGlobalKeydown);
-  window.removeEventListener("resize", handleWindowResize);
-
-  // 清理菜单互斥监听
-  if (cleanupMenuListener) cleanupMenuListener();
-
-  // 销毁字号适配器
+  // 清理字号适配器实例
   if (fontAdapter) fontAdapter.destroy();
 });
 </script>
 
 <style scoped>
-/* 样式部分保持不变 */
+/* 根容器：承载波浪、标题与时间显示 */
 .today-countdown.today-liquid-wrap {
   position: relative;
   overflow: hidden;
@@ -331,6 +363,7 @@ onUnmounted(() => {
   border-radius: var(--border-radius);
 }
 
+/* 背景波浪：全覆盖，禁用事件 */
 .liquid-svg-h {
   position: absolute;
   top: 0;
@@ -342,6 +375,7 @@ onUnmounted(() => {
   border-radius: inherit;
 }
 
+/* 标题位置：卡片左上 */
 .card-header {
   position: absolute;
   top: 16px;
@@ -349,6 +383,7 @@ onUnmounted(() => {
   z-index: 2;
 }
 
+/* 标题样式 */
 .title {
   font-size: 16px;
   color: var(--text-secondary);
@@ -356,6 +391,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
+/* 菜单容器：卡片右上 */
 .settings-menu-container {
   position: absolute;
   top: 8px;
@@ -363,6 +399,7 @@ onUnmounted(() => {
   z-index: 10;
 }
 
+/* 菜单触发按钮：hover/active 高亮 */
 .menu-trigger-btn {
   width: 32px;
   height: 32px;
@@ -378,13 +415,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
 }
-
 .menu-trigger-btn:hover,
 .menu-trigger-btn.active {
   background: var(--bg-quaternary);
   color: var(--text-primary);
 }
 
+/* 菜单面板：靠右展开 */
 .settings-dropdown-panel {
   position: absolute;
   top: calc(100% + 5px);
@@ -399,11 +436,13 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* 列布局：当前仅一列（精度），保留结构便于拓展 */
 .dropdown-column {
   display: flex;
   flex-direction: column;
 }
 
+/* 菜单项：悬停与选中状态高亮 */
 .menu-option-btn {
   height: 30px;
   display: flex;
@@ -422,20 +461,19 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border-color);
   border-radius: 0;
 }
-
 .dropdown-column .menu-option-btn:last-child {
   border-bottom: none;
 }
-
 .menu-option-btn:hover {
   background: var(--bg-quaternary);
+  color: var(--bg-primary);
 }
-
 .menu-option-btn.active {
   background: var(--green-primary);
   color: var(--bg-primary);
 }
 
+/* 时间显示容器：中部对齐，承载 span 片段 */
 .time-display {
   box-sizing: border-box;
   display: flex;
@@ -447,6 +485,7 @@ onUnmounted(() => {
   margin: 20px 0 0;
 }
 
+/* 片段基类：置于波浪之上 */
 .num-block,
 .sep-block,
 .dot-block,
@@ -454,6 +493,7 @@ onUnmounted(() => {
   z-index: 2;
 }
 
+/* 小时/分/秒数字块 */
 .num-block {
   width: 72px;
   text-align: center;
@@ -462,6 +502,7 @@ onUnmounted(() => {
   color: var(--green-primary);
 }
 
+/* 冒号分隔符 */
 .sep-block {
   width: 24px;
   text-align: center;
@@ -471,6 +512,7 @@ onUnmounted(() => {
   user-select: none;
 }
 
+/* 小数点 */
 .dot-block {
   width: 16px;
   text-align: center;
@@ -480,6 +522,7 @@ onUnmounted(() => {
   user-select: none;
 }
 
+/* 毫秒段 */
 .ms-block {
   width: 20px;
   text-align: left;
@@ -488,6 +531,7 @@ onUnmounted(() => {
   color: var(--green-secondary);
 }
 
+/* 移动端适配：更紧凑的布局与字号 */
 @media (max-width: 800px) {
   .today-countdown.today-liquid-wrap {
     flex-direction: column;
@@ -529,6 +573,16 @@ onUnmounted(() => {
 
   .time-display {
     min-width: 120px;
+  }
+
+  /* 移动端：hover 不改变外观，仅 active 高亮 */
+  .menu-trigger-btn:hover {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .menu-trigger-btn.active {
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 }
 </style>

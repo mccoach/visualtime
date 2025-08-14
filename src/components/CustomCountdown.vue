@@ -1,19 +1,23 @@
 <!-- E:\AppProject\VisualTime\src\components\CustomCountdown.vue -->
+<!-- 阶段6：统一仲裁器版本（彻底移除 eventBus 与仲裁器开关），所有互斥仅由 actionArbiter 管控 -->
+
 <template>
+  <!-- 根容器：自定义倒计时模块卡片 -->
   <div class="custom-countdown card">
-    <!-- 顶部工具条（保持原样） -->
+    <!-- 顶部工具条 -->
     <div class="custom-countdown-header">
       <div class="header-zone-left">
         <h3 class="title">自定义倒计时</h3>
       </div>
       <div class="header-actions header-zone-right">
         <div class="joined-btn-group">
+          <!-- 添加按钮：打开“新增事件”模态 -->
           <button
             class="joined-btn action-btn add-btn"
             @click="logic.openAddModal"
             title="添加新倒计时"
           >
-            <!-- 加号图标 -->
+            <!-- 加号图标（纯UI） -->
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -30,6 +34,7 @@
             </svg>
           </button>
 
+          <!-- 排序按钮：手动/升序/降序 三态循环 -->
           <button
             class="joined-btn action-btn"
             :class="{ active: logic.sortOrder.value !== 'manual' }"
@@ -42,6 +47,7 @@
                 : '降序'
             }`"
           >
+            <!-- 三种状态对应三种SVG -->
             <svg
               v-if="logic.sortOrder.value === 'manual'"
               xmlns="http://www.w3.org/2000/svg"
@@ -94,16 +100,16 @@
       </div>
     </div>
 
-    <!-- 模态（保持原样） -->
+    <!-- 新增/编辑模态（仲裁器管理关闭路由：ESC；外点击不关闭） -->
     <div
       v-if="logic.isModalOpen.value"
       class="modal-overlay"
-      @click.self="logic.closeModal"
+      @click.self="handleModalOverlayClick"
     >
       <div class="modal-content" @click.stop>
         <h3 class="modal-title">{{ logic.modalTitle.value }}</h3>
         <div class="modal-form">
-          <!-- 日期 -->
+          <!-- 日期输入区：年-月-日 -->
           <div class="input-group">
             <input
               :ref="logic.formRefs.year"
@@ -150,7 +156,7 @@
               "
             />
           </div>
-          <!-- 时间 -->
+          <!-- 时间输入区：时:分:秒 -->
           <div class="input-group">
             <input
               :ref="logic.formRefs.hour"
@@ -201,7 +207,7 @@
               "
             />
           </div>
-          <!-- 名称 -->
+          <!-- 名称输入 -->
           <input
             :ref="logic.formRefs.name"
             v-model="logic.eventForm.value.name"
@@ -228,18 +234,27 @@
       </div>
     </div>
 
-    <!-- 列表 -->
+    <!-- 列表区域：每条事件支持左滑/菜单/拖拽 -->
     <div class="events-list" ref="eventsListRef">
+      <!-- 事件行容器 -->
       <div
         v-for="event in logic.processedEvents.value"
         :key="event.id"
         :data-id="event.id"
         class="event-container"
-        :class="{
-          'menu-is-active': logic.activeMenu.value === event.id,
-          'pending-copy': logic.pendingCopyId.value === event.id,
-          'pending-delete': logic.pendingDeleteId.value === event.id,
-          'swipe-open': activeSwipeId === event.id,
+        :style="{
+          // 分类提升层级的场景：
+          // 1) 当前行菜单打开（最顶层显示）
+          // 2) 当前行左滑已打开（高度居中，保证右侧按钮阴影完整）
+          // 3) 当前鼠标悬浮在本行（高度最低，确保悬浮阴影不被相邻行遮挡）
+          zIndex:
+            logic.activeMenu.value === event.id
+              ? 2000 // 菜单打开：最高
+              : activeSwipeId === event.id
+                ? 1000 // 左滑展开：次高
+                : logic.hoveredEventId.value === event.id
+                  ? 100 // 仅悬浮：最低提升
+                  : undefined, // 其他：不提升
         }"
         @mouseenter="logic.handleEventMouseEnter(event.id)"
         @mouseleave="logic.handleEventMouseLeave"
@@ -249,16 +264,28 @@
         @touchend.capture="onTouchEnd($event, event.id)"
         @touchcancel.capture="onTouchCancel($event, event.id)"
       >
-        <!-- 裁切容器：注入 --clip-extra 和 padding-left 扩展窗口左边界 -->
-        <div class="clip-wrap" :style="getClipWrapStyle(event.id)">
-          <!-- 滑动层：transform 采用 --swipe-x 与 --clip-extra 的合成 -->
+        <!-- 裁切容器：扩展窗口左边界（优雅左滑，不溢出） -->
+        <div
+          class="clip-wrap"
+          :class="{
+            'is-hovered': logic.hoveredEventId.value === event.id,
+            'menu-is-active': logic.activeMenu.value === event.id,
+            'pending-copy': logic.pendingCopyId.value === event.id,
+            'pending-delete': logic.pendingDeleteId.value === event.id,
+            'swipe-open': activeSwipeId === event.id,
+          }"
+          :style="getClipWrapStyle(event.id)"
+        >
+          <!-- 滑动层：跟随左滑移动 -->
           <div
             class="swipe-wrapper"
             :ref="(el) => (swipeWrapperRefs[event.id] = el)"
             :style="getSwipeStyle(event.id)"
             @transitionend="onSwipeTransitionEnd(event.id)"
           >
+            <!-- 行内网格：名称、日期、倒计时、菜单触发 -->
             <div class="event-item">
+              <!-- 名称列 -->
               <div
                 class="event-name-column"
                 :ref="(el) => (eventNameColumnRefs[event.id] = el)"
@@ -266,6 +293,7 @@
               >
                 <span>{{ event.name }}</span>
               </div>
+              <!-- 日期列 -->
               <div
                 class="event-date-column"
                 :ref="(el) => (dateColumnRefs[event.id] = el)"
@@ -274,6 +302,7 @@
                   event.dateTimeDesc
                 }}</span>
               </div>
+              <!-- 倒计时列 -->
               <div
                 class="event-countdown-column"
                 :ref="(el) => (countdownColumnRefs[event.id] = el)"
@@ -284,7 +313,7 @@
                 ></span>
               </div>
 
-              <!-- 触发按钮仍在裁切容器内；面板外置 -->
+              <!-- 菜单触发（在裁切容器内，避免外点击误判） -->
               <div
                 class="settings-menu-container"
                 :ref="
@@ -299,10 +328,13 @@
               >
                 <button
                   class="menu-trigger-btn"
+                  :class="{ active: logic.activeMenu.value === event.id }"
                   :ref="(el) => (menuTriggerRefs[event.id] = el)"
                   @click="openMenuWithSwipeClose(event.id)"
-                  title="菜单 / 长按拖拽"
+                  title="菜单 /
+                  长按拖拽"
                 >
+                  <!-- 三横线图标 -->
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -323,7 +355,7 @@
             </div>
           </div>
 
-          <!-- 按钮在裁切容器内，右侧固定；宽度按揭示 -->
+          <!-- 右侧功能按钮（左滑揭示） -->
           <div
             class="swipe-actions"
             :ref="(el) => (swipeActionsRefs[event.id] = el)"
@@ -345,7 +377,7 @@
           </div>
         </div>
 
-        <!-- 面板外置，不受裁切 -->
+        <!-- 菜单面板（外置；方向翻转通过 is-upward 控制） -->
         <div
           v-if="logic.activeMenu.value === event.id"
           class="settings-dropdown-panel outside-panel"
@@ -353,6 +385,7 @@
           :class="{ 'is-upward': logic.isMenuUpward.value }"
           @click.stop
         >
+          <!-- 单位列 -->
           <div class="dropdown-column">
             <button
               v-for="unit in logic.unitOptions"
@@ -368,6 +401,7 @@
               {{ unit.label }}
             </button>
           </div>
+          <!-- 精度列 -->
           <div class="dropdown-column">
             <button
               v-for="p in logic.getAvailablePrecisions(
@@ -386,6 +420,7 @@
               {{ p.label }}
             </button>
           </div>
+          <!-- 操作列 -->
           <div class="dropdown-column">
             <button
               class="menu-option-btn"
@@ -409,13 +444,14 @@
         </div>
       </div>
 
+      <!-- 空态提示 -->
       <p v-if="logic.processedEvents.value.length === 0" class="empty-tip">
         暂无自定义倒计时，请添加
       </p>
     </div>
   </div>
 
-  <!-- 提示气泡（Teleport 到 body） -->
+  <!-- 提示气泡：Teleport 到 body -->
   <teleport to="body">
     <Transition name="hint-fade">
       <div
@@ -433,16 +469,16 @@
       >
         <div class="hint-content">
           <div class="hint-item">
-            <span class="hint-key">按 Space 或 / 键</span
-            ><span class="hint-action">编辑</span>
+            <span class="hint-key">按 Space 或 / 键</span>
+            <span class="hint-action">编辑</span>
           </div>
           <div class="hint-item">
-            <span class="hint-key">按 Insert 或 + 键</span
-            ><span class="hint-action">复制</span>
+            <span class="hint-key">按 Insert 或 + 键</span>
+            <span class="hint-action">复制</span>
           </div>
           <div class="hint-item">
-            <span class="hint-key">按 Delete 或 - 键</span
-            ><span class="hint-action">删除</span>
+            <span class="hint-key">按 Delete 或 - 键</span>
+            <span class="hint-action">删除</span>
           </div>
         </div>
       </div>
@@ -484,144 +520,162 @@
 
 <script setup>
 // =======================================
-// 1) 依赖导入
+// 1) 依赖导入（纯仲裁路径版本）
 // =======================================
+
+// Vue 核心API
 import {
-  ref,                 // 基础响应式引用（用于列表根、滑动状态等）
-  onMounted,           // 挂载钩子
-  onUnmounted,         // 卸载钩子
-  onBeforeUpdate,      // 更新前清空节点映射，避免旧引用残留
-  watch,               // 侦听
-  nextTick,            // DOM 更新后执行
-  computed,            // 派生映射
+  ref, // 响应式原子
+  onMounted, // 挂载生命周期
+  onUnmounted, // 卸载生命周期
+  onBeforeUpdate, // 更新前重置ref映射
+  watch, // 侦听响应式数据
+  nextTick, // 下一次DOM更新后
+  computed, // 派生数据
 } from "vue";
 
-import { useCustomEvents } from "../composables/useCustomEvents.js"; // 业务逻辑（列表、菜单、拖拽、快捷键等）
+// 业务逻辑：自定义事件（CRUD/表单/菜单/拖拽/二步确认等）
+import { useCustomEvents } from "../composables/useCustomEvents.js";
 
+// 文本自适应工具集
 import {
-  getEffectiveWidth,        // 容器“有效宽度”读取（box-sizing 修正）
-  makeFontSchedulers,       // 适配调度器（立即/合帧）
-  observeContentWidth,      // 内容宽度监听（MutationObserver）
-  ensureAdapterSlot,        // 适配器统一创建/刷新
+  getEffectiveWidth, // 计算有效宽度（考虑box-sizing与padding）
+  makeFontSchedulers, // 创建调度器（nextTick/rAF）
+  observeContentWidth, // 观察文本内容宽度变化
+  ensureAdapterSlot, // 统一创建/刷新字号适配器槽
 } from "../utils/fontSizeManager.js";
 
-// 引入事件名与广播工具：我们要在“左滑开始”就广播“菜单互斥”
+// 全局互斥仲裁器（唯一机制）
 import {
-  MENU_OPEN_EVENT,          // 全站统一的“菜单打开/互斥”事件名
-  broadcastMenuOpened,      // 广播（会携带 componentId）
-} from "../utils/eventBus.js";
-
-
-// =======================================
-// 2) 业务逻辑与列表状态
-// =======================================
-const logic = useCustomEvents();         // 不动你原有的业务逻辑
-const eventsListRef = ref(null);         // 列表根（RO 观察对象）
+  activate, // 激活会话（后触发即取代）
+  closeActive, // 主动关闭当前会话
+  isActive, // 判断某key是否当前激活
+} from "../services/actionArbiter.js";
 
 // =======================================
-// 3) 节点映射（关键：普通对象，避免渲染期写响应式对象导致递归）
+// 2) 业务实例与列表容器
 // =======================================
-let menuTriggerRefs       = {}; // eventId -> HTMLElement（三横线触发按钮）
-let menuPanelRefs         = {}; // eventId -> HTMLElement（外置菜单面板）
-let eventNameColumnRefs   = {}; // eventId -> HTMLElement（名称列容器）
-let dateColumnRefs        = {}; // eventId -> HTMLElement（日期列容器）
-let countdownColumnRefs   = {}; // eventId -> HTMLElement（倒计时列容器）
-let dateContentRefs       = {}; // eventId -> HTMLElement（日期文本）
-let countdownContentRefs  = {}; // eventId -> HTMLElement（倒计时文本）
-let swipeWrapperRefs      = {}; // eventId -> HTMLElement（滑动层）
-let swipeActionsRefs      = {}; // eventId -> HTMLElement（右侧按钮容器）
 
-// 更新前统一清空，配合模板的 :ref 回调安全重建
+// 获得自定义倒计时的全部业务逻辑与状态
+const logic = useCustomEvents(); // 含 events/菜单/模态/排序等
+const eventsListRef = ref(null); // 列表根容器（用于初始化拖拽）
+
+// =======================================
+// 3) DOM 引用映射（普通对象，避免递归响应式）
+// =======================================
+
+let menuTriggerRefs = {}; // 每行菜单按钮
+let menuPanelRefs = {}; // 菜单面板
+let eventNameColumnRefs = {}; // 名称列容器
+let dateColumnRefs = {}; // 日期列容器
+let countdownColumnRefs = {}; // 倒计时列容器
+let dateContentRefs = {}; // 日期文本节点
+let countdownContentRefs = {}; // 倒计时HTML文本容器
+let swipeWrapperRefs = {}; // 左滑移动层
+let swipeActionsRefs = {}; // 右侧动作按钮容器
+
+// 每次更新前重置映射，避免孤儿引用
 onBeforeUpdate(() => {
-  menuTriggerRefs       = {};
-  menuPanelRefs         = {};
-  eventNameColumnRefs   = {};
-  dateColumnRefs        = {};
-  countdownColumnRefs   = {};
-  dateContentRefs       = {};
-  countdownContentRefs  = {};
-  swipeWrapperRefs      = {};
-  swipeActionsRefs      = {};
+  menuTriggerRefs = {};
+  menuPanelRefs = {};
+  eventNameColumnRefs = {};
+  dateColumnRefs = {};
+  countdownColumnRefs = {};
+  dateContentRefs = {};
+  countdownContentRefs = {};
+  swipeWrapperRefs = {};
+  swipeActionsRefs = {};
 });
 
+// =======================================
+// 4) 字号适配/观察器容器
+// =======================================
+
+let listResizeObserver = null; // 列表尺寸观察器
+let adapters = {}; // 各列自适配槽
+let countdownObsDisconnects = {}; // 倒计时文本内容观察器的清理句柄
 
 // =======================================
-// 4) 适配器与观察器容器
+// 5) 左滑交互状态与阈值（仲裁器统一）
 // =======================================
-let listResizeObserver = null;       // 列表容器 RO（只触发 refresh，不写任何响应式状态）
-let adapters = {};                   // 字号适配器槽位
-let countdownObsDisconnects = {};    // 内容宽度观察清理
 
+const activeSwipeId = ref(null); // 当前打开左滑的条目id
+const swipeXById = ref({}); // 每条目的位移（px）
+let swipingId = null; // 当前手势中条目id
+const animatingIds = ref(new Set()); // 正在动画的条目
+
+const ACTIONS_MAX_WIDTH = 180; // 右侧按钮最大揭示宽度
+const OPEN_THRESHOLD = 60; // 松手后打开阈值（绝对位移）
+const MOVE_THRESHOLD = 10; // 判定水平滑动的阈值
+
+// 手势起点 & 原位移
+let startX = 0,
+  startY = 0,
+  originX = 0;
+// 轴向判定
+let decidedAxis = false,
+  isHorizontal = false;
+
+// 返回“本行左滑的根容器”（供 outside 判定）：clip-wrap（swipe-wrapper 的父节点）
+function getSwipeRootEl(id) {
+  const swipeWrapper = swipeWrapperRefs[id];
+  return swipeWrapper ? swipeWrapper.parentElement : null;
+}
 
 // =======================================
-// 5) 左滑交互状态与阈值（保持你现有行为）
+// 6) id -> event 映射（便于读取配置）
 // =======================================
-const activeSwipeId = ref(null);          // 当前打开的条目 id
-const swipeXById    = ref({});            // 各条目的左滑偏移（px，负值表示左滑）
-let swipingId       = null;               // 当前是否在滑动
-const animatingIds  = ref(new Set());     // 正在过渡动画中的条目
 
-const ACTIONS_MAX_WIDTH = 180;            // 右侧按钮最大揭示宽度
-const OPEN_THRESHOLD    = 60;             // 松手后判定为“打开”的阈值
-const MOVE_THRESHOLD    = 10;             // 触摸移动阈值（判定水平/垂直）
-
-let startX = 0, startY = 0, originX = 0;  // 手势起点
-let decidedAxis = false, isHorizontal = false;
-
-// 新增：记录“本次左滑开始所广播的 componentId”，用于在互斥回调里识别自发事件并忽略
-const lastSwipeBroadcastId = ref(null);
-
-
-// =======================================
-// 6) id -> event 快速映射（只读）
-// =======================================
 const eventsById = computed(() => {
   const m = {};
-  logic.events.value.forEach(e => m[e.id] = e);
+  logic.events.value.forEach((e) => (m[e.id] = e));
   return m;
 });
 
+// =======================================
+// 7) 字号适配调度器（nextTick/帧合并）
+// =======================================
 
-// =======================================
-// 7) 字号适配调度器（立即/合帧）
-// =======================================
 const {
-  scheduleImmediate: scheduleAdaptersImmediate, // 内容变更 -> 立即适配
-  scheduleFrame:     scheduleAdaptersFrame,     // 尺寸/结构变更 -> 合帧适配
+  scheduleImmediate: scheduleAdaptersImmediate, // 内容变化：同帧
+  scheduleFrame: scheduleAdaptersFrame, // 结构变化：rAF
 } = makeFontSchedulers(setupAdapters);
 
+// =======================================
+// 8) 左滑相关内联样式（CSS变量）
+// =======================================
 
-// =======================================
-// 8) 窗口扩展法：样式变量注入（与模板/样式一致）
-// =======================================
+// 裁切容器样式：窗口扩展宽度（防止露出空白）
 function getClipWrapStyle(id) {
   const x = swipeXById.value[id] ?? 0;
-  const extra = x < 0 ? -x : 0;    // 左滑才扩展
-  return { '--clip-extra': `${extra}px` };
+  const extra = x < 0 ? -x : 0;
+  return { "--clip-extra": `${extra}px` };
 }
 
+// 滑动层样式：位移 + 动画状态
 function getSwipeStyle(id) {
-  const x    = swipeXById.value[id] ?? 0;
+  const x = swipeXById.value[id] ?? 0;
   const anim = animatingIds.value.has(id);
   return {
-    '--swipe-x': `${x}px`,
-    transition:  anim ? 'transform 180ms ease-out' : 'none',
-    willChange: 'transform',
+    "--swipe-x": `${x}px`,
+    transition: anim ? "transform 180ms ease-out" : "none",
+    willChange: "transform",
   };
 }
 
+// 右侧按钮容器宽度：随位移揭示，且封顶
 function getSwipeActionsStyle(id) {
   const x = swipeXById.value[id] ?? 0;
   const w = Math.max(0, Math.min(ACTIONS_MAX_WIDTH, -x));
   return { width: `${w}px` };
 }
 
+// =======================================
+// 9) 倒计时列内容宽度监听：内容变化触发字号适配重建
+// =======================================
 
-// =======================================
-// 9) 内容宽度观察（倒计时列），触发“立即适配”
-// =======================================
 function ensureCountdownObserverFor(id) {
-  if (countdownObsDisconnects[id]) return;
+  if (countdownObsDisconnects[id]) return; // 已监听则跳过
   const el = countdownContentRefs[id];
   if (!el) return;
 
@@ -633,42 +687,41 @@ function ensureCountdownObserverFor(id) {
     el,
     (changed, cur) => {
       if (changed) {
-        adapters[key].needsRecreate = true;
+        adapters[key].needsRecreate = true; // 标记需要重建
         adapters[key].lastContentWidth = cur;
       }
-      scheduleAdaptersImmediate();    // 内容变更：同帧适配，避免闪动
+      scheduleAdaptersImmediate(); // 同帧适配
     },
     { threshold: 0 }
   );
-  countdownObsDisconnects[id] = disconnect;
+  countdownObsDisconnects[id] = disconnect; // 保存清理函数
 }
 
+// =======================================
+// 10) 字号适配主入口：日期列/倒计时列各自适配
+// =======================================
 
-// =======================================
-// 10) 适配器主入口（不写响应式列宽，用 provider 即时读 DOM 宽度）
-// =======================================
 function setupAdapters() {
-  logic.events.value.forEach(event => {
+  logic.events.value.forEach((event) => {
     const id = event.id;
 
-    // ---- 日期列 ----
+    // 日期列适配
     {
-      const colEl     = dateColumnRefs[id];
+      const colEl = dateColumnRefs[id];
       const contentEl = dateContentRefs[id];
       if (colEl && contentEl) {
-        const key  = `${id}_date`;
+        const key = `${id}_date`;
         const slot = adapters[key] || (adapters[key] = {});
-        const widthProvider = () => getEffectiveWidth(colEl);  // 即时读宽
-
+        const widthProvider = () => getEffectiveWidth(colEl);
         ensureAdapterSlot(slot, {
           container: colEl,
-          elements:  [contentEl],
+          elements: [contentEl],
           options: {
             container: colEl,
-            elements:  [contentEl],
-            minSize:   10,
+            elements: [contentEl],
+            minSize: 10,
             debounceDelay: 50,
-            observeContainerResize: false,        // 统一外层 RO 调度
+            observeContainerResize: false, // 由上层集中监听
             effectiveWidthProvider: widthProvider,
           },
           forceRecreate: !!slot.needsRecreate,
@@ -676,25 +729,23 @@ function setupAdapters() {
       }
     }
 
-    // ---- 倒计时列 ----
+    // 倒计时列适配（包含内部 HTML 节点）
     {
-      const colEl     = countdownColumnRefs[id];
+      const colEl = countdownColumnRefs[id];
       const contentEl = countdownContentRefs[id];
       if (colEl && contentEl) {
-        ensureCountdownObserverFor(id);           // 监听内容变动
-
-        const elementsToScale = [contentEl, ...contentEl.querySelectorAll('*')];
-        const key  = `${id}_countdown`;
+        ensureCountdownObserverFor(id); // 监听内容宽度
+        const elementsToScale = [contentEl, ...contentEl.querySelectorAll("*")];
+        const key = `${id}_countdown`;
         const slot = adapters[key] || (adapters[key] = {});
-        const widthProvider = () => getEffectiveWidth(colEl);  // 即时读宽
-
+        const widthProvider = () => getEffectiveWidth(colEl);
         ensureAdapterSlot(slot, {
           container: colEl,
-          elements:  [contentEl],
+          elements: [contentEl],
           options: {
             container: colEl,
-            elements:  elementsToScale,
-            minSize:   10,
+            elements: elementsToScale,
+            minSize: 10,
             debounceDelay: 50,
             observeContainerResize: false,
             effectiveWidthProvider: widthProvider,
@@ -706,27 +757,29 @@ function setupAdapters() {
   });
 }
 
+// =======================================
+// 11) 列表 ResizeObserver：结构变化合帧适配
+// =======================================
 
-// =======================================
-// 11) 列表 RO：仅触发 refresh（不写状态，避免闭环）
-// =======================================
 function setupListResizeObserver() {
   if (listResizeObserver) {
-    try { listResizeObserver.disconnect(); } catch {}
+    try {
+      listResizeObserver.disconnect();
+    } catch {}
     listResizeObserver = null;
   }
   if (!eventsListRef.value || !window.ResizeObserver) return;
 
   listResizeObserver = new ResizeObserver(() => {
-    scheduleAdaptersFrame(); // 合帧刷新
+    scheduleAdaptersFrame(); // 结构变化 → rAF 合帧
   });
   listResizeObserver.observe(eventsListRef.value);
 }
 
+// =======================================
+// 12) 滑动动画结束：移除动画状态
+// =======================================
 
-// =======================================
-// 12) 滑动动画结束（清理动画集中标记）
-// =======================================
 function onSwipeTransitionEnd(id) {
   if (animatingIds.value.has(id)) {
     const next = new Set(animatingIds.value);
@@ -735,11 +788,13 @@ function onSwipeTransitionEnd(id) {
   }
 }
 
+// =======================================
+// 13) 左滑开合（UI 与会话分离；仲裁器统一管理）
+// =======================================
 
-// =======================================
-// 13) 左滑开合（不改你现有行为）
-// =======================================
-function openSwipe(id) {
+// 仅更新UI（打开）
+function openSwipeUI(id) {
+  // 若已有其他条目打开，先关闭其他
   if (activeSwipeId.value && activeSwipeId.value !== id) {
     const other = activeSwipeId.value;
     swipeXById.value = { ...swipeXById.value, [other]: 0 };
@@ -747,6 +802,7 @@ function openSwipe(id) {
     n.add(other);
     animatingIds.value = n;
   }
+  // 设置本条目展开至最大
   swipeXById.value = { ...swipeXById.value, [id]: -ACTIONS_MAX_WIDTH };
   const n = new Set(animatingIds.value);
   n.add(id);
@@ -754,7 +810,8 @@ function openSwipe(id) {
   activeSwipeId.value = id;
 }
 
-function closeSwipe(id) {
+// 仅更新UI（关闭）
+function closeSwipeUI(id) {
   swipeXById.value = { ...swipeXById.value, [id]: 0 };
   const n = new Set(animatingIds.value);
   n.add(id);
@@ -762,39 +819,98 @@ function closeSwipe(id) {
   if (activeSwipeId.value === id) activeSwipeId.value = null;
 }
 
+// 打开左滑：激活会话（后触发即取代），outside/ESC关闭
+function openSwipe(id) {
+  // 已是当前激活则只需确保UI打开
+  if (isActive(`swipe:custom:${id}`)) {
+    openSwipeUI(id);
+    return;
+  }
+
+  // 激活新会话（作用域：clip-wrap，避免内部点击误判为outside）
+  activate({
+    key: `swipe:custom:${id}`,
+    closers: { esc: true, outside: true },
+    onPreempt: () => {
+      // 会话被取代或关闭：幂等关闭UI
+      closeSwipeUI(id);
+    },
+    onRelease: () => {
+      // 释放后兜底关闭UI
+      closeSwipeUI(id);
+    },
+    getRootEl: () => getSwipeRootEl(id),
+  });
+
+  // 打开UI
+  openSwipeUI(id);
+}
+
+// 关闭左滑：若是当前会话则通过仲裁器关闭，否则仅做UI关闭
+function closeSwipe(id) {
+  const key = `swipe:custom:${id}`;
+  if (isActive(key)) {
+    closeActive("close");
+  } else {
+    closeSwipeUI(id);
+  }
+}
+
+// 关闭所有左滑（用于操作前收起）
 function closeAllSwipes() {
   if (!activeSwipeId.value) return;
   closeSwipe(activeSwipeId.value);
 }
 
+/* 新增：仅“抢占/声明”左滑会话，不修改UI，用于一判定为水平滑动即刻互斥其它会话 */
+function claimSwipeSession(id) {
+  const key = `swipe:custom:${id}`;
+  if (isActive(key)) return; // 已是当前，无需重复
+  activate({
+    key,
+    closers: { esc: true, outside: true },
+    onPreempt: () => {
+      closeSwipeUI(id); // 被取代时收起本行（幂等）
+    },
+    onRelease: () => {
+      closeSwipeUI(id); // 会话关闭后兜底收起（幂等）
+    },
+    getRootEl: () => getSwipeRootEl(id), // 作用域：clip-wrap
+  });
+}
 
 // =======================================
-// 14) 触摸手势（移动端）
-//      新增：左滑开始立即广播“菜单互斥事件”，关闭全站菜单/弹层；
-//            但通过 sourceId 让本条目自身不受影响（不关闭自己）。
+// 14) 触摸手势（移动端左滑）
 // =======================================
+
+// 判断触点是否位于“拖拽把手”（菜单按钮）
+function isOnDragHandle(id, target) {
+  const handleEl = menuTriggerRefs[id];
+  if (!handleEl || !target) return false;
+  return handleEl === target || handleEl.contains(target);
+}
+
+// touchstart：建立手势，禁止与拖拽会话同时发生；把手区域不触发左滑
 function onTouchStart(e, id) {
-  // 仅移动端
-  if (window.innerWidth > 800) return;
-  // 单指
-  if (!e.touches || e.touches.length !== 1) return;
-  // 若命中按钮容器，不进入滑动（交由按钮点击）
+  if (window.innerWidth > 800) return; // 仅移动端启用
+  if (!e.touches || e.touches.length !== 1) return; // 单指手势
+
+  // 若拖拽会话正在进行，禁止左滑
+  if (isActive("drag:custom-list")) return;
+
+  // 触点若位于右侧动作按钮/菜单面板/拖拽把手，跳过左滑
   const actionsEl = swipeActionsRefs[id];
   if (actionsEl && actionsEl.contains(e.target)) return;
 
-  // 新增：命中“外置菜单面板”时，完全忽略滑动（避免捕获阶段抢走事件）
   const panelEl = menuPanelRefs[id];
   if (panelEl && panelEl.contains(e.target)) return;
 
-  // 记录“正在滑动的条目”
+  if (isOnDragHandle(id, e.target)) return;
+
+  // 标记当前手势曲线
   swipingId = id;
 
-  // 新增：一开始就广播“菜单互斥”，关闭全站其它弹出菜单/面板
-  // 约定 componentId：custom-swipe-{id}；后续在 handleAnyMenuOpened 中识别并忽略本条目
-  lastSwipeBroadcastId.value = `custom-swipe-${id}`;
-  broadcastMenuOpened(lastSwipeBroadcastId.value);
-
-  // 记录手势起点
+  // 记录起点
   const t = e.touches[0];
   startX = t.clientX;
   startY = t.clientY;
@@ -802,7 +918,7 @@ function onTouchStart(e, id) {
   decidedAxis = false;
   isHorizontal = false;
 
-  // 若该条目处于“动画中”，先移除其动画标记
+  // 若当前处于动画中，先移除动画状态，避免瞬移感
   if (animatingIds.value.has(id)) {
     const n = new Set(animatingIds.value);
     n.delete(id);
@@ -810,21 +926,36 @@ function onTouchStart(e, id) {
   }
 }
 
+// touchmove：轴向判定后，仅在水平时拦截滚动并更新位移
 function onTouchMove(e, id) {
   if (window.innerWidth > 800) return;
   if (swipingId !== id) return;
   if (!e.touches || e.touches.length !== 1) return;
 
-  const t  = e.touches[0];
+  // 拖拽进行时不响应左滑移动
+  if (isActive("drag:custom-list")) return;
+
+  const t = e.touches[0];
   const dx = t.clientX - startX;
   const dy = t.clientY - startY;
 
-  if (!decidedAxis && (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD)) {
-    decidedAxis  = true;
+  // 判定轴向（只判一次）
+  if (
+    !decidedAxis &&
+    (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD)
+  ) {
+    decidedAxis = true;
     isHorizontal = Math.abs(dx) > Math.abs(dy);
   }
-  if (!isHorizontal) return;
 
+  // 新增：一旦确定为“水平滑动”，立刻声明/抢占左滑会话，立即互斥掉菜单/其他左滑
+  if (isHorizontal) {
+    claimSwipeSession(id);
+  } else {
+    return; // 非水平 → 交还浏览器垂直滚动
+  }
+
+  // 水平滑动：阻止浏览器滚动，更新位移
   e.preventDefault();
   e.stopPropagation();
 
@@ -835,152 +966,243 @@ function onTouchMove(e, id) {
   swipeXById.value = { ...swipeXById.value, [id]: nextX };
 }
 
+// touchend：根据阈值决定开合；拖拽优先
 function onTouchEnd(e, id) {
   if (window.innerWidth > 800) return;
   if (swipingId !== id) return;
 
-  if (!isHorizontal) {
+  if (isActive("drag:custom-list")) {
     swipingId = null;
-    lastSwipeBroadcastId.value = null; // 结束本次“左滑广播”标识
     return;
   }
+
+  if (!isHorizontal) {
+    swipingId = null;
+    return;
+  }
+
   const x = swipeXById.value[id] ?? 0;
   if (Math.abs(x) > OPEN_THRESHOLD) openSwipe(id);
   else closeSwipe(id);
 
   swipingId = null;
-  lastSwipeBroadcastId.value = null;     // 结束本次“左滑广播”标识
 }
 
+// touchcancel：与 touchend 相同的收尾策略
 function onTouchCancel(e, id) {
-  onTouchEnd(e, id);
+  if (window.innerWidth > 800) return;
+  if (swipingId !== id) return;
+
+  if (isActive("drag:custom-list")) {
+    swipingId = null;
+    return;
+  }
+
+  const x = swipeXById.value[id] ?? 0;
+  if (Math.abs(x) > OPEN_THRESHOLD) openSwipe(id);
+  else closeSwipe(id);
+
+  swipingId = null;
 }
 
+// =======================================
+// 15) 右侧按钮：编辑/复制/删除（操作前收起左滑）
+// =======================================
 
-// =======================================
-// 15) 右侧按钮点击（先收起左滑，再执行）
-// =======================================
 function handleSwipeEdit(eventObj) {
   closeAllSwipes();
+  // 传入原始 event 或映射后的对象均可
   logic.openEditModal(eventsById.value[eventObj.id] || eventObj);
 }
+
 function handleSwipeCopy(eventObj) {
   closeAllSwipes();
   logic.copyEvent(eventsById.value[eventObj.id] || eventObj);
 }
+
 function handleSwipeDelete(id) {
   closeAllSwipes();
   logic.handleMenuDelete(id);
 }
+
+// 打开菜单：无需手动关闭左滑，菜单会话激活将取代左滑会话
 function openMenuWithSwipeClose(id) {
-  closeAllSwipes();
-  logic.toggleMenu(id);
+  toggleRowMenu(id);
 }
 
+// =======================================
+// 16) 模态遮罩点击：本组件的新增/编辑模态 outside=false，不响应遮罩点击
+// =======================================
+
+function handleModalOverlayClick() {
+  // 故意留空：模态会话已设置 outside:false（仅 ESC 关闭）
+}
 
 // =======================================
-// 16) 全局点击捕获 & 菜单互斥广播处理
-//      修改：互斥事件到来时，若是“本条目左滑开始”发出的广播，则忽略，不关闭本条目。
+// 16.5) 菜单方向翻转（根据触发器相对视口位置动态判断）
 // =======================================
-function handleGlobalClickCapture(e) {
-  if (!activeSwipeId.value) return;
 
-  const id        = activeSwipeId.value;
-  const wrapperEl = swipeWrapperRefs[id];
-  const actionsEl = swipeActionsRefs[id];
-  const target    = e.target;
+function flipMenuDirectionIfNeeded(id) {
+  const triggerEl = menuTriggerRefs[id];
+  const panelEl = menuPanelRefs[id];
+  if (!triggerEl || !panelEl) return;
 
-  // 命中滑层 / 右侧按钮 / 外置面板：都不关闭，不干扰菜单点击
-  if (
-    (wrapperEl && wrapperEl.contains(target)) ||
-    (actionsEl && actionsEl.contains(target)) ||
-    (panelEl && panelEl.contains(target))     // 新增白名单
-  ) {
-    return;
+  const trigRect = triggerEl.getBoundingClientRect();
+  const panelRect = panelEl.getBoundingClientRect();
+  const panelHeight = panelRect.height || panelEl.offsetHeight || 0;
+
+  const viewportH = window.innerHeight || document.documentElement.clientHeight;
+  const belowSpace = Math.max(0, viewportH - trigRect.bottom);
+  const aboveSpace = Math.max(0, trigRect.top);
+
+  let shouldUp = false;
+  if (panelHeight > belowSpace && aboveSpace >= belowSpace) {
+    shouldUp = panelHeight <= aboveSpace || aboveSpace >= belowSpace;
+  } else if (panelHeight > aboveSpace && belowSpace >= aboveSpace) {
+    shouldUp = false;
+  } else if (panelHeight > aboveSpace && panelHeight > belowSpace) {
+    shouldUp = aboveSpace >= belowSpace;
+  } else {
+    shouldUp = false;
   }
-  // 其它区域：照常关闭已打开的左滑
-  closeAllSwipes();
-}
 
-function handleAnyMenuOpened(ev) {
-  // 提取广播源 componentId（可能为空）
-  const srcId = ev && ev.detail && ev.detail.id;
-
-  // 若是“本条目在 onTouchStart 发出的自广播”，则忽略，不关闭本条目的左滑
-  if (srcId && lastSwipeBroadcastId.value && srcId === lastSwipeBroadcastId.value) {
-    return;
+  if (logic.isMenuUpward.value !== shouldUp) {
+    logic.isMenuUpward.value = shouldUp;
   }
-
-  // 否则按原逻辑：收到任何菜单打开 -> 收起当前左滑
-  closeAllSwipes();
 }
 
+// 当菜单打开时，nextTick 后进行一次方向判定
+watch(
+  () => logic.activeMenu.value,
+  (newId) => {
+    if (newId != null) {
+      nextTick(() => flipMenuDirectionIfNeeded(newId));
+    }
+  }
+);
+
+// 窗口尺寸变化时，若有菜单打开则重新判定方向
+const _onWindowResize = () => {
+  const id = logic.activeMenu.value;
+  if (id != null) {
+    nextTick(() => flipMenuDirectionIfNeeded(id));
+  }
+};
 
 // =======================================
-// 17) 生命周期：挂载/卸载
+// 17) 生命周期：初始化拖拽/观察器；移除全部旧广播/旧监听
 // =======================================
+
 onMounted(() => {
   nextTick(() => {
+    // 初始化拖拽（把手：菜单按钮，长按300ms）
     if (eventsListRef.value) logic.initializeSortable(eventsListRef.value);
-    setupListResizeObserver();       // RO 仅触发 refresh
-    scheduleAdaptersImmediate();     // 首次适配
+    // 列表尺寸观察
+    setupListResizeObserver();
+    // 首次适配
+    scheduleAdaptersImmediate();
   });
 
-  // 点击外部关闭左滑（捕获阶段）
-  document.addEventListener('click', handleGlobalClickCapture, true);
-  // 监听互斥广播（带 event 参数）
-  document.addEventListener(MENU_OPEN_EVENT, handleAnyMenuOpened);
+  // 仅保留必要的 window 监听（方向翻转）
+  window.addEventListener("resize", _onWindowResize);
 });
 
 onUnmounted(() => {
+  // 销毁所有字号适配器
   destroyAllAdapters();
+  // 取消文本内容观察
   disconnectAllContentObservers();
+  // 取消列表尺寸观察
   if (listResizeObserver) {
-    try { listResizeObserver.disconnect(); } catch {}
+    try {
+      listResizeObserver.disconnect();
+    } catch {}
     listResizeObserver = null;
   }
-  document.removeEventListener('click', handleGlobalClickCapture, true);
-  document.removeEventListener(MENU_OPEN_EVENT, handleAnyMenuOpened);
+  // 移除窗口监听
+  window.removeEventListener("resize", _onWindowResize);
 });
 
+// =======================================
+// 18) 列表数据变化：重建拖拽与适配
+// =======================================
 
-// =======================================
-// 18) 列表数据变更：适配 + 拖拽
-// =======================================
 watch(
   () => logic.events.value,
   () => {
     nextTick(() => {
-      scheduleAdaptersImmediate();                      // 立即适配
-      if (eventsListRef.value) logic.initializeSortable(eventsListRef.value); // 重建拖拽
+      scheduleAdaptersImmediate();
+      if (eventsListRef.value) logic.initializeSortable(eventsListRef.value);
     });
   },
   { deep: true }
 );
 
+// =======================================
+// 19) 清理工具：适配器与观察器
+// =======================================
 
-// =======================================
-// 19) 清理工具
-// =======================================
 function destroyAllAdapters() {
-  Object.values(adapters).forEach(slot => {
+  Object.values(adapters).forEach((slot) => {
     if (slot && slot.adapter) {
-      try { slot.adapter.destroy(); } catch {}
+      try {
+        slot.adapter.destroy();
+      } catch {}
     }
   });
   adapters = {};
 }
 
 function disconnectAllContentObservers() {
-  Object.values(countdownObsDisconnects).forEach(fn => {
-    try { fn(); } catch {}
+  Object.values(countdownObsDisconnects).forEach((fn) => {
+    try {
+      fn();
+    } catch {}
   });
   countdownObsDisconnects = {};
+}
+
+// =======================================
+// 20) 菜单 toggle（仅仲裁器路径）
+// =======================================
+
+function toggleRowMenu(eventId) {
+  const key = `menu:custom:${eventId}`;
+
+  // 已是当前激活：toggle 关闭
+  if (isActive(key)) {
+    closeActive("toggle");
+    return;
+  }
+
+  // 激活新的菜单会话：outside/ESC关闭；scope=触发器容器+外置面板
+  activate({
+    key,
+    closers: { esc: true, outside: true },
+    onPreempt: () => {
+      if (logic.activeMenu.value === eventId) {
+        logic.activeMenu.value = null;
+      }
+    },
+    onRelease: () => {
+      if (logic.activeMenu.value === eventId) {
+        logic.activeMenu.value = null;
+      }
+    },
+    getRootEl: () => {
+      const triggerContainer = menuTriggerRefs[eventId]?.parentElement || null; // .settings-menu-container
+      const panelEl = menuPanelRefs[eventId] || null; // 外置面板
+      return [triggerContainer, panelEl].filter(Boolean);
+    },
+  });
+
+  // 打开当前菜单（其余菜单将被对方 onPreempt 关闭）
+  logic.activeMenu.value = eventId;
 }
 </script>
 
 <style scoped>
-/* 外壳与工具条（保持原样） */
+/* 外壳与工具条 */
 .custom-countdown {
   margin-bottom: 6px;
   position: relative;
@@ -1061,47 +1283,79 @@ function disconnectAllContentObservers() {
 .event-container {
   background: var(--bg-tertiary);
   border-radius: 12px;
-  position: relative; /* 用于外置面板定位 */
-  overflow: visible; /* 面板可溢出 */
+  position: relative;
+  overflow: visible;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   cursor: default;
 }
-.event-container.menu-is-active {
-  z-index: 20;
-}
 
+/* 裁切容器（左滑窗口扩展法 + 柔和呼吸动效支持） */
 .clip-wrap {
   position: relative;
   border-radius: var(--cc-radius, 12px);
-  overflow: hidden; /* 做减法：裁切内部内容与按钮 */
-
-  /* 关键：窗口扩展法（左边界随滑动向左移动，右边界固定）
-     - 宽度增加 absX
-     - 自身整体向左平移 absX，使右边界不动、左边界左移 */
+  overflow: hidden;
   width: calc(100% + var(--clip-extra, 0px));
   transform: translateX(calc(var(--clip-extra, 0px) * -1));
-  will-change: transform;
-  /*border: 1px dashed #10998e;/* [保留] 保留您的测试用边框 */
+
+  /* 新增：仅对光效相关属性做过渡，避免 transform 拖尾 */
+  transition: box-shadow 0.25s ease, outline-color 0.25s ease;
+
+  /* 新增：使用 outline 营造高级感描边，不影响布局尺寸 */
+  outline: 0 solid transparent;
+
+  /* 合并：同时提示浏览器优化 transform + 阴影 + 描边颜色 */
+  will-change: transform, box-shadow, outline-color;
 }
 
+/* 新增：悬浮高亮（加强版，仍保持克制与高级感）
+   - 增强项：
+     1) 阴影略加强：更深的主阴影与次阴影，形成更清晰的“浮起感”
+     2) 描边饱和度略升：绿色点缀从 20% -> 32%，并将宽度从 1px 提升到 1.5px
+     3) 内容层轻微提亮：仅在悬浮时将内容背景微提亮，提升可感知度但不过曝
+   - 不改变尺寸与位移，避免与左滑/过渡造成干扰
+ */
+.clip-wrap.is-hovered {
+  /* 提升层级由父容器 z-index 控制，这里只负责视觉表现 */
+  box-shadow: 
+    0 14px 34px rgba(0, 0, 0, 0.28), /* 主阴影：略深、半径略大 */ 
+    0 4px 14px rgba(0, 0, 0, 0.22); /* 次阴影：贴近主体，层次更清晰 */
+  outline-color: color-mix(
+    in srgb,
+    var(--green-primary) 32%,
+    transparent
+  ); /* 轻度提升饱和度 */
+  /*outline-width: 1.5px; /* 描边更细腻 */
+  /* 不做 transform 位移，避免与左滑/动画叠加引发“跳动感” */
+}
+
+/* 悬浮时对内容层做轻微提亮（仅在支持 color-mix 的浏览器生效）
+   - 提亮比例谨慎（约 12% toward #fff），保证不刺眼 */
+.clip-wrap.is-hovered .swipe-wrapper {
+  /* 保留原色作为回退，然后尝试混合提亮 */
+  background: var(--bg-quaternary);
+  /* background: color-mix(in srgb, var(--bg-tertiary) 88%, #fff 8%); */
+}
+
+/* 如果希望在“左滑已展开”的情况下也维持同等高亮，可按需解注释：
+.clip-wrap.is-hovered,
+.clip-wrap.swipe-open {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), 0 4px 14px rgba(0, 0, 0, 0.22);
+  outline-color: color-mix(in srgb, var(--green-primary) 32%, transparent);
+  outline-width: 1.5px;
+} */
+
+/* 滑动层（跟随裁切容器位移） */
 .swipe-wrapper {
   position: relative;
   z-index: 1;
   display: block;
-  width: 100%;
+  width: calc(100% + var(--swipe-x, 0px));
   padding: 15px;
-  will-change: transform;
   background: var(--bg-tertiary);
   box-sizing: border-box;
-
-  /* 子层 = var(--swipe-x) + var(--clip-extra)
-     父层 clip-wrap = translateX(-var(--clip-extra))
-     合成后整体 = var(--swipe-x)，与按钮等速度一致 */
-  transform: translateX(calc(var(--swipe-x, 0px) + var(--clip-extra, 0px)));
-  transition: transform 180ms ease-out; /* 内联 transition 依然会覆盖这个值，不冲突 */
-  /*border: 1px dashed #201099; /* [保留] 保留您的测试用边框 */
 }
-/* 行内容栅格（高度/布局保持） */
+
+/* 行内网格 */
 .event-item {
   position: relative;
   display: grid;
@@ -1109,10 +1363,9 @@ function disconnectAllContentObservers() {
   gap: 20px;
   align-items: center;
   z-index: 1;
-  /*border: 1px dashed #991070; /* [保留] 保留您的测试用边框 */
 }
 
-/* 按钮：裁切容器内，右对齐、宽度揭示 */
+/* 右侧彩色按钮（随左滑揭示） */
 .swipe-actions {
   position: absolute;
   right: 0;
@@ -1124,7 +1377,7 @@ function disconnectAllContentObservers() {
   justify-content: space-between;
   gap: 0;
   z-index: 2;
-  overflow: hidden; /**/
+  overflow: hidden;
 }
 .swipe-btn {
   flex: 1 1 0;
@@ -1165,7 +1418,6 @@ function disconnectAllContentObservers() {
   min-height: 24px;
   white-space: nowrap;
   overflow: hidden;
-  /*border: 1px dashed #991070;/* [保留] 保留您的测试用边框 */
 }
 .event-name-column {
   align-items: center;
@@ -1187,7 +1439,7 @@ function disconnectAllContentObservers() {
   transition: color 0.2s;
 }
 
-/* 触发按钮（仍在裁切容器内；面板外置） */
+/* 菜单触发容器与按钮 */
 .settings-menu-container {
   position: absolute;
   top: 50%;
@@ -1200,23 +1452,23 @@ function disconnectAllContentObservers() {
   height: 32px;
   border: none;
   border-radius: 8px;
-  background: transparent !important;
+  background: transparent;
   color: var(--text-secondary);
   font-size: 16px;
   font-weight: bold;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: background 0.2s, color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .menu-trigger-btn:hover,
 .menu-trigger-btn.active {
-  background: transparent !important;
+  background: var(--text-tertiary);
   color: var(--text-primary);
 }
 
-/* 面板（外置） */
+/* 菜单面板（外置；默认向下） */
 .settings-dropdown-panel {
   background-color: var(--bg-secondary);
   border-radius: 8px;
@@ -1228,15 +1480,15 @@ function disconnectAllContentObservers() {
 }
 .settings-dropdown-panel.outside-panel {
   position: absolute;
-  top: 40px;
-  right: 13px;
+  top: 45px;
+  right: 6px;
   z-index: 1002;
   touch-action: manipulation;
 }
-.settings-dropdown-panel.is-upward {
-  /* 预留翻转类 */
+.settings-dropdown-panel.outside-panel.is-upward {
+  top: auto;
+  bottom: 45px;
 }
-
 .dropdown-column {
   display: flex;
   flex-direction: column;
@@ -1271,13 +1523,13 @@ function disconnectAllContentObservers() {
   color: var(--bg-primary);
 }
 .menu-option-btn.delete {
-  color: #f44336;
+  color: #ef4444;
 }
 .menu-option-btn.delete:hover {
   background-color: rgba(244, 67, 54, 0.1);
 }
 
-/* 提示气泡（Teleport 到 body） */
+/* 提示气泡 */
 .operation-hint,
 .copy-confirm-hint,
 .delete-confirm-hint {
@@ -1317,14 +1569,14 @@ function disconnectAllContentObservers() {
   color: var(--text-primary);
 }
 .hint-item:last-child .hint-action {
-  color: #ff7575;
+  color: #ef4444;
 }
 .copy-confirm-hint {
-  background: var(--green-primary);
+  background: #f59e0b;
   color: #fff;
 }
 .delete-confirm-hint {
-  background: #d32f2f;
+  background: #ef4444;
   color: #fff;
 }
 .hint-fade-enter-active,
@@ -1334,6 +1586,60 @@ function disconnectAllContentObservers() {
 .hint-fade-enter-from,
 .hint-fade-leave-to {
   opacity: 0;
+}
+
+/* 复制待确认：琥珀黄（amber）低饱和，柔和呼吸 */
+@keyframes vt-softPulse-amber {
+  0% {
+    box-shadow: 0 0 0 rgba(245, 158, 11, 0), 0 0 0 rgba(0, 0, 0, 0);
+    outline-color: rgba(245, 158, 11, 0);
+    outline-width: 0px;
+    transform: translateZ(0);
+  }
+  50% {
+    box-shadow: 0 10px 28px rgba(245, 158, 11, 0.16),
+      0 0 0 4px rgba(245, 158, 11, 0.14);
+    outline-color: rgba(245, 158, 11, 0.22);
+    outline-width: 2px;
+    transform: translateZ(0);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(245, 158, 11, 0), 0 0 0 rgba(0, 0, 0, 0);
+    outline-color: rgba(245, 158, 11, 0);
+    outline-width: 0px;
+    transform: translateZ(0);
+  }
+}
+
+/* 删除待确认：柔和红（tailwind red-500 同色系）低饱和，轻盈呼吸 */
+@keyframes vt-softPulse-red {
+  0% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0), 0 0 0 rgba(0, 0, 0, 0);
+    outline-color: rgba(239, 68, 68, 0);
+    outline-width: 0px;
+    transform: translateZ(0);
+  }
+  50% {
+    box-shadow: 0 10px 28px rgba(239, 68, 68, 0.18),
+      0 0 0 4px rgba(239, 68, 68, 0.14);
+    outline-color: rgba(239, 68, 68, 0.22);
+    outline-width: 2px;
+    transform: translateZ(0);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0), 0 0 0 rgba(0, 0, 0, 0);
+    outline-color: rgba(239, 68, 68, 0);
+    outline-width: 0px;
+    transform: translateZ(0);
+  }
+}
+
+/* 绑定在 .clip-wrap 上的状态类，触发柔和闪动（迭代3次，恰好覆盖确认窗口期） */
+.clip-wrap.pending-copy {
+  animation: vt-softPulse-amber 1.2s ease-in-out 3;
+}
+.clip-wrap.pending-delete {
+  animation: vt-softPulse-red 1.2s ease-in-out 3;
 }
 
 /* 拖拽视觉 */
@@ -1445,7 +1751,7 @@ function disconnectAllContentObservers() {
   max-width: 100%;
 }
 
-/* 移动端 */
+/* 移动端适配 */
 @media (max-width: 800px) {
   .custom-countdown-header {
     grid-template-columns: 1fr;
@@ -1463,8 +1769,6 @@ function disconnectAllContentObservers() {
     width: 100%;
     gap: 8px;
     text-align: center;
-    transform: translateX(calc(var(--clip-extra, 0px) * -0.5));
-    will-change: transform;
   }
   .event-name-column,
   .event-date-column,
@@ -1474,16 +1778,29 @@ function disconnectAllContentObservers() {
     text-align: center;
   }
 
+  .menu-trigger-btn:hover {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .menu-trigger-btn.active {
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+  }
+
   .settings-menu-container {
     top: 8px;
     right: -8px;
-    transform: translateX(calc(var(--clip-extra, 0px) * -0.5)) translateY(-50%);
   }
   .settings-dropdown-panel.outside-panel {
     position: absolute;
-    top: 36px;
-    right: 13px;
+    top: 40px;
+    right: 6px;
     z-index: 1002;
+  }
+  .settings-dropdown-panel.outside-panel.is-upward {
+    bottom: 112px;
+    top: auto;
   }
 
   .modal-content {
