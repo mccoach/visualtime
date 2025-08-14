@@ -1121,8 +1121,8 @@ export function useCustomEvents() {
       e.preventDefault();
       const key = `confirm:delete:${id}`;
       if (isActive(key)) {
-        deleteEvent(id);
         closeActive("confirm");
+        deleteEvent(id);
       } else {
         openDeleteConfirm(id);
       }
