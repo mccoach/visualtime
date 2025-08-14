@@ -1110,8 +1110,8 @@ export function useCustomEvents() {
       e.preventDefault();
       const key = `confirm:copy:${id}`;
       if (isActive(key)) {
-        copyEvent(ev);
         closeActive("confirm");
+        copyEvent(ev);
       } else {
         openCopyConfirm(id);
       }
