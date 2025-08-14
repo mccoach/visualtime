@@ -67,11 +67,17 @@
       </div>
 
       <!-- 微信二维码弹窗（遮罩） -->
+      <!--
+        v-if="showWechat"              // 仅在状态为 true 时渲染 
+        class="wechat-modal"           // 遮罩层 
+        ref="wechatModalRef"           // 提供给仲裁器进行“外点击”命中判定 
+        @click.self="closeWechat"      // 点击遮罩空白区域时关闭（辅助，主路由仍由仲裁器统一处理） 
+      -->
       <div
-        v-if="showWechat"              <!-- 仅在状态为 true 时渲染 -->
-        class="wechat-modal"           <!-- 遮罩层 -->
-        ref="wechatModalRef"           <!-- 提供给仲裁器进行“外点击”命中判定 -->
-        @click.self="closeWechat"      <!-- 点击遮罩空白区域时关闭（辅助，主路由仍由仲裁器统一处理） -->
+        v-if="showWechat"
+        class="wechat-modal"
+        ref="wechatModalRef"
+        @click.self="closeWechat"
       >
         <!-- 弹窗内容盒 -->
         <div class="wechat-qr-box">
