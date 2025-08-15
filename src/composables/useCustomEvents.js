@@ -5,38 +5,31 @@
 // B) 松手/取消时：不论是否进入真实拖拽，一律立即释放所有互斥与滚动锁；
 // 其它业务逻辑保持不变，严格限制工作范围。
 
-// ───────────────────────────────────────────────────────────────────────────────
-// 依赖导入
-// ───────────────────────────────────────────────────────────────────────────────
 import {
-  ref, // 基础响应式原子
-  computed, // 派生属性
-  onMounted, // 挂载生命周期
-  onUnmounted, // 卸载生命周期
-  nextTick, // 下一次 DOM 更新后
-  reactive, // 响应式对象
-  watch, // 侦听
-} from "vue"; // Vue 核心 API
-import Sortable from "sortablejs"; // 拖拽库
-import { DateTime } from "luxon"; // 日期处理
-import { now } from "../services/clockService"; // 全局时钟（高频）
-import { computeCountdown } from "../services/countdownEngine"; // 倒计时引擎
-import * as storage from "../utils/storage"; // 本地存储工具
-import * as formatters from "../utils/formatters"; // 格式化工具
-import { activate, closeActive, isActive } from "../services/actionArbiter.js"; // 互斥仲裁器
+  ref,
+  computed,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  reactive,
+  watch,
+} from "vue";
+import Sortable from "sortablejs";
+import { DateTime } from "luxon";
+import { now } from "../services/clockService";
+import { computeCountdown } from "../services/countdownEngine";
+import * as storage from "../utils/storage";
+import * as formatters from "../utils/formatters";
+import { activate, closeActive, isActive } from "../services/actionArbiter.js";
 
-// ───────────────────────────────────────────────────────────────────────────────
-// 导出主 API
-// ───────────────────────────────────────────────────────────────────────────────
 export function useCustomEvents() {
   // ========== 基础状态 ==========
-  const events = ref([]); // 事件列表（localStorage 持久化）
-  const customCounter = ref(1); // “自定义N”命名计数器
-  const isModalOpen = ref(false); // 新增/编辑模态开关
-  const modalTitle = ref("添加自定义倒计时"); // 模态标题
-  const activeEventData = ref(null); // 当前编辑/复制的数据
+  const events = ref([]);
+  const customCounter = ref(1);
+  const isModalOpen = ref(false);
+  const modalTitle = ref("添加自定义倒计时");
+  const activeEventData = ref(null);
 
-  // 表单模型（字符串便于校验与补零）
   const eventForm = ref({
     year: "",
     month: "",
@@ -47,18 +40,16 @@ export function useCustomEvents() {
     name: "",
   });
 
-  // 列表行态
-  const activeMenu = ref(null); // 当前打开菜单的事件ID
-  const sortOrder = ref("manual"); // 排序模式：manual | asc | desc
+  const activeMenu = ref(null);
+  const sortOrder = ref("manual");
 
-  // 悬浮提示/二次确认相关
-  const hoveredEventId = ref(null); // 当前悬浮行
-  const mousePosition = ref({ x: 0, y: 0 }); // 提示气泡位置
-  const showOperationHint = ref(false); // 是否显示操作提示（桌面端）
-  const pendingCopyId = ref(null); // 复制二次确认目标
-  const pendingDeleteId = ref(null); // 删除二次确认目标
-  let operationHintTimer = null; // 提示延时器
-  let operationHintHideTimer = null; // 提示自动隐藏器
+  const hoveredEventId = ref(null);
+  const mousePosition = ref({ x: 0, y: 0 });
+  const showOperationHint = ref(false);
+  const pendingCopyId = ref(null);
+  const pendingDeleteId = ref(null);
+  let operationHintTimer = null;
+  let operationHintHideTimer = null;
 
   // 表单字段引用与顺序
   const formYearRef = ref(null);
@@ -70,7 +61,6 @@ export function useCustomEvents() {
   const formNameRef = ref(null);
 
   const formRefs = {
-    // 引用字典
     year: formYearRef,
     month: formMonthRef,
     day: formDayRef,
@@ -80,9 +70,8 @@ export function useCustomEvents() {
     name: formNameRef,
   };
 
-  const valueBeforeFocus = ref(""); // 焦点前原值（ESC 还原用）
+  const valueBeforeFocus = ref("");
   const fieldOrder = [
-    // 自然导航顺序
     "year",
     "month",
     "day",
@@ -92,7 +81,6 @@ export function useCustomEvents() {
     "name",
   ];
 
-  // 字段校验配置
   const fieldConfig = {
     year: { maxLength: 6, min: -99999, max: 99999 },
     month: { maxLength: 2, min: 1, max: 12 },
@@ -128,7 +116,6 @@ export function useCustomEvents() {
     { value: 2, label: "0.00" },
   ];
   const getAvailablePrecisions = (unit) => {
-    // 精度选项过滤
     if (unit === "seconds")
       return allPrecisionOptions.filter(
         (p) => p.value === "combo" || p.value === 0
@@ -140,40 +127,30 @@ export function useCustomEvents() {
     return allPrecisionOptions;
   };
 
-  // 菜单方向（组件测量回写）
   const isMenuUpward = ref(false);
-
-  // 菜单根引用（组件 setMenuRef 回传）
-  const menuRefs = {}; // { [id]: { container, trigger, panel } }
+  const menuRefs = {};
   const setMenuRef = (id, el) => {
-    // 记录引用
     if (el) menuRefs[id] = el;
   };
 
-  // 拖拽实例
   let sortableInstance = null;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 拖拽禁用提示（排序模式下） & 交互基础设施（滚动锁、一键互斥）
+  // 拖拽禁用提示 & 滚动锁 & 一次性把手点击抑制
   // ─────────────────────────────────────────────────────────────────────────────
-
-  // 提示状态：在非手动排序时，长按阈值达成显示（始终位于指针左侧）
   const dragDisabledHint = reactive({
-    visible: false, // 是否可见
-    x: 0, // 提示左上角 X
-    y: 0, // 提示左上角 Y
-    text: "当前为排序视图，拖拽已禁用。\n请切回“手动排序”后再拖拽。", // 文案
+    visible: false,
+    x: 0,
+    y: 0,
+    text: "当前为排序视图，拖拽已禁用。\n请切回“手动排序”后再拖拽。",
   });
 
-  // 移动端滚动锁（长按阈值达成即锁，松手统一释放）
-  let _scrollLocked = false; // 是否已锁定滚动
-  let _lockedByLongPress = false; // 本轮是否由长按触发的锁
+  let _scrollLocked = false;
+  let _lockedByLongPress = false;
   const _preventTouchMove = (e) => {
-    // 捕获阶段阻止默认滚动
     if (_scrollLocked) e.preventDefault();
   };
   function lockScroll() {
-    // 加锁
     if (_scrollLocked) return;
     _scrollLocked = true;
     document.addEventListener("touchmove", _preventTouchMove, {
@@ -182,7 +159,6 @@ export function useCustomEvents() {
     });
   }
   function unlockScroll() {
-    // 解锁
     if (!_scrollLocked) return;
     _scrollLocked = false;
     document.removeEventListener("touchmove", _preventTouchMove, {
@@ -190,13 +166,11 @@ export function useCustomEvents() {
     });
   }
 
-  // 拖拽会话声明（统一互斥）：在“长按阈值到达”即刻调用
   function beginDragSession() {
     activate({
-      key: "drag:custom-list", // 唯一会话键
-      closers: { esc: true, outside: true }, // 允许 ESC 与外点击关闭
+      key: "drag:custom-list",
+      closers: { esc: true, outside: true },
       onPreempt: () => {
-        // 被取代/关闭前：收尾
         try {
           sortableInstance?.option?.("disabled", true);
         } catch {}
@@ -205,7 +179,6 @@ export function useCustomEvents() {
         pendingDeleteId.value = null;
       },
       onRelease: () => {
-        // 完全释放后：恢复“手动模式”可拖拽
         try {
           sortableInstance?.option?.("disabled", sortOrder.value !== "manual");
         } catch {}
@@ -213,11 +186,9 @@ export function useCustomEvents() {
     });
   }
 
-  // 全局跟随（mouse/touchmove）句柄，用于提示跟随
   let _hintFollowMouseMove = null;
   let _hintFollowTouchMove = null;
 
-  // 显示提示并开始跟随（仅在非手动排序时使用）
   function showDragDisabledHintAt(x, y) {
     if (Number.isFinite(x)) dragDisabledHint.x = x;
     if (Number.isFinite(y)) dragDisabledHint.y = y;
@@ -245,7 +216,6 @@ export function useCustomEvents() {
     }
   }
 
-  // 隐藏提示并停止跟随
   function hideDragDisabledHint() {
     dragDisabledHint.visible = false;
     if (_hintFollowMouseMove) {
@@ -258,11 +228,9 @@ export function useCustomEvents() {
     }
   }
 
-  // 一次性“把手点击抑制器”：抑制下一次把手(.menu-trigger-btn)的 click（拖拽尝试后防止误开菜单）
-  let _suppressClickCleanup = null; // 清理器引用
+  let _suppressClickCleanup = null;
   function suppressNextHandleClick(rootEl) {
-    // 安装一次性抑制
-    if (_suppressClickCleanup) return; // 已有则不重复
+    if (_suppressClickCleanup) return;
     const onClickCapture = (ev) => {
       const btn = ev.target?.closest?.(".menu-trigger-btn");
       if (btn && rootEl.contains(btn)) {
@@ -272,8 +240,8 @@ export function useCustomEvents() {
       }
       cleanup();
     };
-    const onNextDown = () => cleanup(); // 任意下一次按下解除抑制
-    const onBlur = () => cleanup(); // 窗口失焦亦解除
+    const onNextDown = () => cleanup();
+    const onBlur = () => cleanup();
 
     function cleanup() {
       document.removeEventListener("click", onClickCapture, true);
@@ -292,39 +260,33 @@ export function useCustomEvents() {
     _suppressClickCleanup = cleanup;
   }
   function releaseHandleClickSuppression() {
-    // 主动释放（兜底）
     if (_suppressClickCleanup) _suppressClickCleanup();
   }
 
-  // 把手长按识别（事件委托）：采用“最简两锚点”逻辑
-  // - 阈值达成：立即互斥 + 锁滚（触屏）+ 在非手动模式下显示禁用提示
-  // - 松手/取消：无条件立即释放互斥 + 解锁滚动 + 抑制下一次把手 click
+  // 把手长按识别（事件委托）：最简两锚点逻辑
   function installDragHintDelegation(rootEl) {
     if (!rootEl) return () => {};
 
     const HOLD_DELAY = 300; // 与 Sortable delay 保持一致
     const MOVE_TOL = 8; // 长按期间允许的小位移（像素）
 
-    let timer = null; // 长按计时器
+    let timer = null;
     let startX = 0,
-      startY = 0; // 起始坐标
-    let triedDrag = false; // 是否达成“长按阈值”
-    let wasTouchStart = false; // 是否触屏起始（移动端）
+      startY = 0;
+    let triedDrag = false;
+    let wasTouchStart = false;
 
     const getXY = (e) => {
-      // 抽取坐标
       const t = e.touches?.[0];
       return { x: t?.clientX ?? e.clientX, y: t?.clientY ?? e.clientY };
     };
 
     const clearHold = (hide = true) => {
-      // 清理本轮长按与提示跟随
       if (timer) {
         clearTimeout(timer);
         timer = null;
       }
       if (_lockedByLongPress) {
-        // 若本轮由长按加锁，则释放
         _lockedByLongPress = false;
         unlockScroll();
       }
@@ -339,7 +301,6 @@ export function useCustomEvents() {
     };
 
     const onDown = (e) => {
-      // 按下：启动“长按识别”
       const btn = e.target?.closest?.(".menu-trigger-btn");
       if (!btn || !rootEl.contains(btn)) return;
 
@@ -350,21 +311,17 @@ export function useCustomEvents() {
       wasTouchStart = e.type.startsWith("touch");
 
       timer = setTimeout(() => {
-        // 阈值达成：无论能否实际进入拖拽，统一进行“互斥 + 锁滚”动作
         triedDrag = true;
-        beginDragSession(); // 立刻互斥关闭菜单/左滑等
+        beginDragSession();
         if (wasTouchStart) {
-          // 触屏场景：锁定滚动，直到松手释放
           _lockedByLongPress = true;
           lockScroll();
         }
         if (sortOrder.value !== "manual") {
-          // 非手动排序：显示禁用提示（随指针）
           showDragDisabledHintAt(startX, startY);
         }
       }, HOLD_DELAY);
 
-      // 安装本轮的全局监听
       window.addEventListener("mouseup", onUp, true);
       window.addEventListener("touchend", onUp, true);
       window.addEventListener("touchcancel", onUp, true);
@@ -376,36 +333,31 @@ export function useCustomEvents() {
     };
 
     const onMove = (e) => {
-      // 长按前：过大位移则取消本轮识别
       if (!timer && !triedDrag) return;
       const { x, y } = getXY(e);
       const dx = Math.abs(x - startX),
         dy = Math.abs(y - startY);
       if (!triedDrag && (dx > MOVE_TOL || dy > MOVE_TOL)) {
-        clearHold(false); // 阈值未达，移动过大 -> 取消尝试
+        clearHold(false);
       }
     };
 
     const onUp = () => {
-      // 松手：统一收尾（核心锚点B）
       if (triedDrag) {
-        suppressNextHandleClick(rootEl); // 抑制下一次把手 click（避免误开菜单）
+        suppressNextHandleClick(rootEl);
         if (isActive("drag:custom-list")) {
-          // 无条件释放互斥（不关心是否真实进入拖拽）
           closeActive("drag-up-release");
         }
       }
-      clearHold(true); // 解锁滚动 + 提示收尾 + 解绑监听
+      clearHold(true);
     };
 
-    // 安装委托
     rootEl.addEventListener("mousedown", onDown, true);
     rootEl.addEventListener("touchstart", onDown, {
       capture: true,
       passive: true,
     });
 
-    // 返回清理器
     return () => {
       clearHold(false);
       rootEl.removeEventListener("mousedown", onDown, true);
@@ -414,12 +366,11 @@ export function useCustomEvents() {
   }
 
   // 委托清理器 & 排序监听清理器
-  let _hintDelegationCleanup = null; // 把手长按委托清理器
-  let _sortableWatchStop = null; // sortOrder 侦听清理器
+  let _hintDelegationCleanup = null;
+  let _sortableWatchStop = null;
 
-  // 初始化拖拽（保持既有 Sortable 行为不变；onStart/onEnd 依旧工作）
+  // 初始化拖拽（保持既有 Sortable 行为不���；onStart/onEnd 依旧工作）
   const initializeSortable = (element) => {
-    // 若已有旧实例，先销毁
     if (sortableInstance) {
       try {
         sortableInstance.destroy();
@@ -428,12 +379,11 @@ export function useCustomEvents() {
     }
     if (!element) return;
 
-    // 创建 Sortable（disabled 随 sortOrder 控制）
     sortableInstance = Sortable.create(element, {
-      draggable: ".event-container", // 每行可拖拽
-      handle: ".menu-trigger-btn", // 把手：菜单按钮
-      delayOnTouchOnly: false, // 任意指针类型
-      delay: 300, // 长按 300ms（与 HOLD_DELAY 对齐）
+      draggable: ".event-container",
+      handle: ".menu-trigger-btn",
+      delayOnTouchOnly: false,
+      delay: 300,
       forceFallback: true,
       fallbackOnBody: true,
       fallbackTolerance: 3,
@@ -441,20 +391,17 @@ export function useCustomEvents() {
       ghostClass: "drag-ghost",
       chosenClass: "sortable-chosen",
       scroll: true,
-      disabled: sortOrder.value !== "manual", // 非手动：彻底禁用拖拽
+      disabled: sortOrder.value !== "manual",
 
-      // 真实进入拖拽时：再抑制一次 click（双保险），刷新会话（幂等）
       onStart: () => {
-        suppressNextHandleClick(element); // 防止抬手瞬间把手触发 click
-        beginDragSession(); // 会话刷新（若已激活则刷新配置）
+        suppressNextHandleClick(element);
+        beginDragSession();
       },
 
-      // 未产生位移或取消选中：释放会话
       onUnchoose: () => {
         if (isActive("drag:custom-list")) closeActive("drag-unchoose");
       },
 
-      // 拖拽结束：若位置变更则保存，并释放会话
       onEnd: (evt) => {
         if (
           evt.oldIndex == null ||
@@ -464,7 +411,6 @@ export function useCustomEvents() {
           if (isActive("drag:custom-list")) closeActive("drag-end");
           return;
         }
-        // 一旦手动拖拽成功，回到手动模式并保存顺序
         sortOrder.value = "manual";
         const moved = events.value.splice(evt.oldIndex, 1)[0];
         events.value.splice(evt.newIndex, 0, moved);
@@ -472,13 +418,11 @@ export function useCustomEvents() {
         if (isActive("drag:custom-list")) closeActive("drag-end");
       },
 
-      // 取消：释放会话
       onCancel: () => {
         if (isActive("drag:custom-list")) closeActive("drag-cancel");
       },
     });
 
-    // 排序模式变化：动态启/禁拖拽（并关闭正在进行的拖拽会话）
     if (_sortableWatchStop) {
       _sortableWatchStop();
       _sortableWatchStop = null;
@@ -495,7 +439,6 @@ export function useCustomEvents() {
       }
     );
 
-    // 安装把手长按委托（最简两锚点逻辑：阈值达成 -> 互斥+锁滚；松手 -> 释放）
     if (_hintDelegationCleanup) {
       _hintDelegationCleanup();
       _hintDelegationCleanup = null;
@@ -505,8 +448,7 @@ export function useCustomEvents() {
 
   // ========== 派生显示数据 ==========
   const processedEvents = computed(() => {
-    const sorted = [...events.value]; // 拷贝数据
-    // 非手动排序：按目标时间升/降序
+    const sorted = [...events.value];
     if (sortOrder.value !== "manual") {
       const toDt = (e) =>
         DateTime.fromObject({
@@ -527,7 +469,6 @@ export function useCustomEvents() {
           : B.toMillis() - A.toMillis();
       });
     }
-    // 行内显示文本（日期描述 + 倒计时）
     return sorted.map((event) => {
       const result = computeCountdown({
         type: "custom",
@@ -579,25 +520,37 @@ export function useCustomEvents() {
     });
   });
 
-  // ========== 表单合法性 ==========
+  // ========== 表单合法性（修复：避免 "-" 导致 NaN 抛错） ==========
   const isFormValid = computed(() => {
     const f = eventForm.value;
+
+    // 若年份为空或仅为 "-"，或月份/日期为空，则暂视为无效，避免传 NaN 给 Luxon
+    if (f.year === "" || f.year === "-" || f.month === "" || f.day === "") {
+      return false;
+    }
+
+    // 安全数值解析器：空字符串/非法值回退
+    const toSafeInt = (v, fallback) => {
+      if (v === "" || v === "-") return fallback;
+      const n = parseInt(v, 10);
+      return Number.isNaN(n) ? fallback : n;
+    };
+
     const dt = DateTime.fromObject({
-      year: Number(f.year),
-      month: Number(f.month),
-      day: Number(f.day),
-      hour: Number(f.hour || 0),
-      minute: Number(f.minute || 0),
-      second: Number(f.second || 0),
+      year: toSafeInt(f.year, 0),
+      month: toSafeInt(f.month, 1),
+      day: toSafeInt(f.day, 1),
+      hour: toSafeInt(f.hour, 0),
+      minute: toSafeInt(f.minute, 0),
+      second: toSafeInt(f.second, 0),
     });
     const okYear = f.year !== "" && f.year !== "-";
     return dt.isValid && okYear;
   });
 
   // ========== 存取/初始化 ==========
-  const saveEvents = () => storage.saveCustomEvents(events.value); // 保存列表
+  const saveEvents = () => storage.saveCustomEvents(events.value);
   const loadEvents = () => {
-    // 读取 + 填充默认字段
     const saved = storage.getCustomEvents();
     events.value = saved.map((e) => ({
       unit: "days",
@@ -613,7 +566,6 @@ export function useCustomEvents() {
 
   // ========== 模态（新增/编辑） ==========
   const closeModal = () => {
-    // 关闭模态
     if (isActive("modal:custom-edit")) {
       closeActive("close");
       return;
@@ -623,7 +575,6 @@ export function useCustomEvents() {
   };
 
   const saveEvent = () => {
-    // 保存记录
     if (!isFormValid.value) {
       alert("请填写完整且合法的时间");
       return;
@@ -652,15 +603,16 @@ export function useCustomEvents() {
   };
 
   const deleteEvent = (id) => {
-    // 删除记录
     events.value = events.value.filter((e) => e.id !== id);
     saveEvents();
     if (pendingDeleteId.value === id) pendingDeleteId.value = null;
   };
 
   const copyEvent = (eventToCopy) => {
-    // 复制并新增
     activeMenu.value = null;
+    const key = `menu:custom:${eventToCopy.id}`;
+    if (isActive(key)) closeActive("select"); // 修复：选择后立即关闭菜单会话
+
     modalTitle.value = "复制并新增事件";
     const data = {
       ...eventToCopy,
@@ -694,8 +646,8 @@ export function useCustomEvents() {
   };
 
   const openAddModal = () => {
-    // 新增
     activeMenu.value = null;
+
     modalTitle.value = "添加自定义倒计时";
     activeEventData.value = { unit: "days", decimalPrecision: 0 };
 
@@ -727,8 +679,10 @@ export function useCustomEvents() {
   };
 
   const openEditModal = (event) => {
-    // 编辑
     activeMenu.value = null;
+    const key = `menu:custom:${event.id}`;
+    if (isActive(key)) closeActive("select"); // 修复：选择后立即关闭菜单会话
+
     modalTitle.value = "编辑事件";
     activeEventData.value = { ...event };
     eventForm.value = {
@@ -757,7 +711,7 @@ export function useCustomEvents() {
     nextTick(() => formRefs.year.value?.focus());
   };
 
-  // 行菜单 toggle（兼容导出；组件侧已有仲裁版实现）
+  // 行菜单 toggle（兼容导出）
   const toggleMenu = (eventId) => {
     const key = `menu:custom:${eventId}`;
     if (isActive(key)) {
@@ -781,11 +735,14 @@ export function useCustomEvents() {
     activeMenu.value = eventId;
   };
 
-  // 菜单动作
+  // 菜单动作（修复：选择后立即关闭 arbiter 会话，避免二次点击才能重开）
   const handleMenuDelete = (id) => {
     activeMenu.value = null;
+    const key = `menu:custom:${id}`;
     if (confirm("确定要删除这个事件吗？")) deleteEvent(id);
+    if (isActive(key)) closeActive("select");
   };
+
   const updateEventUnit = (id, unit) => {
     const ev = events.value.find((e) => e.id === id);
     if (ev) {
@@ -802,7 +759,10 @@ export function useCustomEvents() {
       saveEvents();
     }
     activeMenu.value = null;
+    const key = `menu:custom:${id}`;
+    if (isActive(key)) closeActive("select");
   };
+
   const updateEventPrecision = (id, precision) => {
     const ev = events.value.find((e) => e.id === id);
     if (ev) {
@@ -810,20 +770,22 @@ export function useCustomEvents() {
       saveEvents();
     }
     activeMenu.value = null;
+    const key = `menu:custom:${id}`;
+    if (isActive(key)) closeActive("select");
   };
 
-  // 排序模式切换（三态循环）
+  // 排序模式切换
   const cycleSortOrder = () => {
     const map = { manual: "asc", asc: "desc", desc: "manual" };
     sortOrder.value = map[sortOrder.value];
-    if (sortOrder.value === "manual") loadEvents(); // 回到手动：恢复存储顺序
+    if (sortOrder.value === "manual") loadEvents();
   };
 
   // ========== 悬浮提示（桌面端） ==========
-  let docMouseMoveHandler = null; // 全局 mousemove
+  let docMouseMoveHandler = null;
 
   function handleEventMouseEnter(id) {
-    if (window.innerWidth <= 800) return; // 移动端不启用悬浮提示
+    if (window.innerWidth <= 800) return;
     if (pendingCopyId.value && pendingCopyId.value !== id)
       pendingCopyId.value = null;
     if (pendingDeleteId.value && pendingDeleteId.value !== id)
@@ -870,7 +832,7 @@ export function useCustomEvents() {
   }
 
   // ========== 二次确认（复制/删除） ==========
-  let confirmTimers = { copy: null, delete: null }; // 超时器
+  let confirmTimers = { copy: null, delete: null };
 
   function openCopyConfirm(id) {
     if (pendingDeleteId.value && pendingDeleteId.value !== id) {
@@ -931,13 +893,11 @@ export function useCustomEvents() {
       const config = fieldConfig[field];
 
       if (field === "year") {
-        // 年份：允许负号
         value = value.replace(/[^0-9-]/g, "");
         if (value.lastIndexOf("-") > 0) {
           value = value.replace(/-/g, (m, off) => (off === 0 ? m : ""));
         }
       } else if (field !== "name") {
-        // 其它数字字段
         value = value.replace(/\D/g, "");
       }
 
@@ -958,7 +918,6 @@ export function useCustomEvents() {
       const config = fieldConfig[field];
 
       const navigate = (dir) => {
-        // 导航前后字段
         event.preventDefault();
         const idx = fieldOrder.indexOf(field);
         const nextIndex = (idx + dir + fieldOrder.length) % fieldOrder.length;
@@ -967,7 +926,6 @@ export function useCustomEvents() {
       };
 
       const adjustValue = (delta) => {
-        // 数字字段增减（环绕）
         if (field === "name") return;
         event.preventDefault();
         let num = Number(eventForm.value[field]) || 0;
@@ -1048,7 +1006,6 @@ export function useCustomEvents() {
     },
 
     onWheel(event, field) {
-      // 滚轮增减
       if (field === "name") return;
       const delta = event.deltaY < 0 ? 1 : -1;
       let num = Number(eventForm.value[field]) || 0;
@@ -1062,7 +1019,6 @@ export function useCustomEvents() {
     },
 
     onFocus(event, field) {
-      // 聚焦：预填 + 选中
       valueBeforeFocus.value = eventForm.value[field];
       if (!eventForm.value[field] && field !== "name") {
         const cur = DateTime.now();
@@ -1074,7 +1030,6 @@ export function useCustomEvents() {
     },
 
     onBlur(field) {
-      // 失焦：归一
       if (field === "name" || !eventForm.value[field]) return;
       let v = eventForm.value[field];
       if (field === "year" && (v === "-" || v === "-0")) {
@@ -1131,24 +1086,22 @@ export function useCustomEvents() {
 
   // ========== 生命周期 ==========
   onMounted(() => {
-    loadEvents(); // 初始化数据
-    document.addEventListener("keydown", handleContextualKeydown); // 注册快捷键
+    loadEvents();
+    document.addEventListener("keydown", handleContextualKeydown);
   });
 
   onUnmounted(() => {
-    document.removeEventListener("keydown", handleContextualKeydown); // 解绑快捷键
+    document.removeEventListener("keydown", handleContextualKeydown);
 
     if (docMouseMoveHandler) {
-      // 解绑鼠标跟随
       document.removeEventListener("mousemove", docMouseMoveHandler);
       docMouseMoveHandler = null;
     }
 
-    if (confirmTimers.copy) clearTimeout(confirmTimers.copy); // 清理计时器
+    if (confirmTimers.copy) clearTimeout(confirmTimers.copy);
     if (confirmTimers.delete) clearTimeout(confirmTimers.delete);
 
     if (sortableInstance) {
-      // 销毁拖拽
       try {
         sortableInstance.destroy();
       } catch {}
@@ -1158,15 +1111,15 @@ export function useCustomEvents() {
     if (_hintDelegationCleanup) {
       _hintDelegationCleanup();
       _hintDelegationCleanup = null;
-    } // 清理委托
-    hideDragDisabledHint(); // 关闭提示
+    }
+    hideDragDisabledHint();
     if (_sortableWatchStop) {
       _sortableWatchStop();
       _sortableWatchStop = null;
-    } // 停止侦听
+    }
 
-    releaseHandleClickSuppression(); // 释放一次性抑制器（兜底）
-    unlockScroll(); // 兜底释放滚动锁
+    releaseHandleClickSuppression();
+    unlockScroll();
   });
 
   // 列表数据变化：组件会在 nextTick 后重新 initializeSortable
@@ -1186,7 +1139,7 @@ export function useCustomEvents() {
   );
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 导出接口
+  // ��出接口
   // ─────────────────────────────────────────────────────────────────────────────
   return {
     // 数据/显示

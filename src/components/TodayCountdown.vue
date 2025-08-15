@@ -183,7 +183,10 @@ function handlePrecisionChange(val) {
   storage.setPrecision("today", val);
   fontAdapterNeedsRecreate.value = true;
   scheduleFontAdapterImmediate();
-  // 注意：菜单状态不改变，由仲裁器管理关闭
+
+  // 新增：关闭仲裁会话并收起菜单（解决点选后不关闭的问题）
+  if (isActive("menu:today")) closeActive("select");
+  isMenuOpen.value = false;
 }
 
 // ========================== 背景波浪（尺寸响应） ==========================

@@ -102,7 +102,7 @@
                 <!-- 标签 -->
               </button>
             </div>
-            <div class="dropdow n-column"> <!-- 列2：小数位选项 -->
+            <div class="dropdown-column"> <!-- 列2：小数位选项 -->
               <!--              
                 v-for="d in getAvailableDecimalOptions(
                   cards[meta.key].countdown.precision
@@ -349,14 +349,20 @@ function toggleMenu(cardType) {
 function handlePrecisionChange(cardType, value) {
   // 切换单位精度
   cards[cardType].countdown.setPrecision(value); // 更新精度
-  closeAllMenus(); // 收拢所有菜单
+  // 新增：关闭仲裁会话，避免需要再次点击才能重开
+  const key = `menu:standard:${cardType}`;
+  if (isActive(key)) closeActive("select");
+  else closeAllMenus(); // 收拢所有菜单
   cards[cardType].fontAdapterNeedsRecreate = true; // 标记需要重建字号适配
   scheduleAdaptersImmediate(); // 立即调度刷新
 } // 结束
 function handleDecimalChange(cardType, value) {
   // 切换小数位
   cards[cardType].countdown.setDecimalPrecision(value); // 更新小数
-  closeAllMenus(); // 收拢菜单
+  // 新增：关闭仲裁会话，避免需要再次点击才能重开
+  const key = `menu:standard:${cardType}`;
+  if (isActive(key)) closeActive("select");
+  else closeAllMenus(); // 收拢菜单
   cards[cardType].fontAdapterNeedsRecreate = true; // 标记重建
   scheduleAdaptersImmediate(); // 刷新
 } // 结束
@@ -365,7 +371,10 @@ function handleWeekStartChange(cardType, value) {
   if (cardType === "week") {
     // 仅周卡有效
     cards[cardType].countdown.setWeekStart(value); // 写入设置
-    closeAllMenus(); // 收拢菜单
+    // 新增：关闭仲裁会话，避免需要再次点击才能重开
+    const key = `menu:standard:${cardType}`;
+    if (isActive(key)) closeActive("select");
+    else closeAllMenus(); // 收拢菜单
     scheduleAdaptersImmediate(); // 刷新字号
   } // 条件结束
 } // 函数结束
@@ -655,11 +664,7 @@ onUnmounted(() => {
   /* 面板中的一列 */
   display: flex; /* 弹性布局 */
   flex-direction: column; /* 纵向排列 */
-} /* 规则结束 */
-
-.dropdown-column:not(:first-child) {
-  /* 除第一列外，左侧加分隔线 */
-  border-left: 1px solid var(--border-color); /* 分隔线 */
+  border: 1px solid var(--border-color); /* 分隔线 */
 } /* 规则结束 */
 
 .countdown-card.card-cup.menu-active {
@@ -670,6 +675,7 @@ onUnmounted(() => {
 .menu-option-btn {
   /* 面板内按钮样式 */
   height: 30px; /* 高度30px */
+  width: 36px; /* 高度30px */
   display: flex; /* 弹性布局 */
   align-items: center; /* 垂直居中 */
   justify-content: center; /* 水平居中 */
@@ -685,12 +691,7 @@ onUnmounted(() => {
   white-space: nowrap; /* 不换行 */
   border-bottom: 1px solid var(--border-color); /* 行分隔线 */
   border-radius: 0; /* 去圆角（与容器统一） */
-} /* 规则结束 */
-
-.dropdown-column .menu-option-btn:last-child {
-  /* 每列最后一个不画底部分隔线 */
-  border-bottom: none; /* 去底线 */
-} /* 规则结束 */
+}
 
 .menu-option-btn:hover {
   /* 悬停高亮 */
