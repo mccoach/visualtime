@@ -446,7 +446,7 @@
 
       <!-- 空态提示 -->
       <p v-if="logic.processedEvents.value.length === 0" class="empty-tip">
-        暂无自定义倒计时，请添加
+        暂无自定义倒计时，请点击右上 + 添加
       </p>
     </div>
   </div>
